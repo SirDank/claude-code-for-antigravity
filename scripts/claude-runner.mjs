@@ -9,7 +9,7 @@ import { spawn, execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
-import { homedir, platform } from 'node:os';
+import { homedir, platform, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -688,7 +688,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   const claudeArgs = buildClaudeArgs({ ...options, sessionId });
 
-  const runDir = resolve('.agents', 'tmp', 'claude-runs');
+  const runDir = join(tmpdir(), 'claude-runs');
   if (!existsSync(runDir)) {
     mkdirSync(runDir, { recursive: true });
   }

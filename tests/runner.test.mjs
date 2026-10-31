@@ -103,7 +103,7 @@ test('formatDigest enforces compact digest bounds (<2000 chars)', () => {
     result: 'A'.repeat(5000)
   };
 
-  const digest = formatDigest(JSON.stringify(largeOutput), '.agents/tmp/claude-runs/test.json', 'test-session-123');
+  const digest = formatDigest(JSON.stringify(largeOutput), 'claude-runs/test.json', 'test-session-123');
   assert.ok(digest.includes('=== CLAUDE RUN DIGEST ==='));
   assert.ok(digest.includes('test-session-123'));
   assert.ok(digest.includes('$0.0450'));
@@ -119,7 +119,7 @@ test('formatDigest handles turn limit errors without dumping raw json', () => {
     errors: ['Reached maximum number of turns (3)']
   };
 
-  const digest = formatDigest(JSON.stringify(turnLimitOutput), '.agents/tmp/claude-runs/turn.json', 'turn-session-456');
+  const digest = formatDigest(JSON.stringify(turnLimitOutput), 'claude-runs/turn.json', 'turn-session-456');
   assert.ok(digest.includes('Status: STOPPED'));
   assert.ok(digest.includes('Reached maximum number of turns'));
   assert.ok(digest.includes('--max-turns'));
