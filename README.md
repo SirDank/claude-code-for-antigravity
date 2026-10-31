@@ -13,7 +13,7 @@ A cross-platform bridge and skill suite enabling **Google Antigravity** (VS Code
 - **Unified `/claude` Powerhouse**: Consolidates task delegation, code review, architectural planning, and worktree isolation into a single intuitive slash command with native modes: `auto`, `plan`, `edit`, and `manual`.
 - **Maximum Reasoning Effort**: Always defaults to `--effort max` (and Ultracode where supported) so free OpenRouter models (like `nvidia/nemotron-3-ultra-550b-a55b:free`) and premium models reason at full cognitive depth.
 - **Unlimited Turns by Default**: Removes artificial turn caps so complex multi-file scans and large investigations run to natural completion without getting killed.
-- **Automatic Live Panel Visibility**: Automatically detects an active Claude Code tab in VS Code (`~/.claude/ide/*.lock`), opens the panel with your prompt, and streams execution.
+- **IDE Integration & Live Visibility**: Auto-detects active Claude Code instances in VS Code (`~/.claude/ide/*.lock`), connects via the IDE MCP server for editor context and diffs, and supports one-click prompt handoff to the Claude Code panel (`openVscodeUri`). For live visual TUI streaming, runs in VS Code integrated terminal sessions.
 - **Dedicated Doctor (`/claude-setup`)**: Standalone preflight diagnostic tool verifying 7 runtime requirements, authentication, provider settings, and automatic `.gitignore` safeguards.
 - **Test-Gated Worktree Implementation (`/claude edit`)**: Quarantines code modifications in an isolated Git worktree (`--worktree`) with auto-cleanup (`git worktree prune`).
 - **Cross-Platform & Zero Dependencies**: Built with pure Node.js (`.mjs`) for bulletproof execution on Windows, macOS, and Linux without external npm packages.
@@ -30,8 +30,8 @@ A cross-platform bridge and skill suite enabling **Google Antigravity** (VS Code
                                        │
                       ┌────────────────┴────────────────┐
                       ▼                                 ▼
-             /claude-review /claude-delegate     /claude-vscode
-             (scripts/claude-runner.mjs)        (Desktop URI Handoff)
+                   /claude                        openVscodeUri
+          (scripts/claude-runner.mjs)         (Desktop URI Handoff)
                       │                                 │
                       ├──────────────────────────┐      │
                       ▼                          ▼      ▼

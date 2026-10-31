@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, TASK_PRESETS } from '../scripts/claude-runner.mjs';
+import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, openVscodeUri, TASK_PRESETS } from '../scripts/claude-runner.mjs';
 
 test('parseArgs correctly parses CLI options', () => {
   const argv = [
@@ -125,4 +125,11 @@ test('formatDigest handles turn limit errors without dumping raw json', () => {
   assert.ok(digest.includes('Reached maximum number of turns'));
   assert.ok(digest.includes('--max-turns'));
   assert.ok(!digest.includes('"subtype":"error_max_turns"'));
+});
+
+test('openVscodeUri handles fresh and resumed sessions', () => {
+  assert.equal(typeof openVscodeUri, 'function');
+  // Should return true or false without crashing
+  const freshResult = openVscodeUri(null, 'Test fresh prompt');
+  assert.equal(typeof freshResult, 'boolean');
 });

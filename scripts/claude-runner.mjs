@@ -502,15 +502,19 @@ export function formatDigest(rawJson, artifactPath, sessionId) {
 }
 
 /**
- * Opens VS Code URI handoff handler to show session in the Claude Code tab.
+ * Opens VS Code URI handoff handler to show prompt in the Claude Code tab.
+ * Note: Session ID is only passed if resuming a known saved session.
+ * For fresh prompts, passing an unknown session ID causes VS Code to drop initialPrompt.
  */
-export function openVscodeUri(sessionId, promptText = '') {
+export function openVscodeUri(sessionId = null, promptText = '') {
   const encPrompt = encodeURIComponent(promptText || '');
-  const uri = `vscode://anthropic.claude-code/open?session=${sessionId}&prompt=${encPrompt}`;
-  
+  const uri = sessionId
+    ? `vscode://anthropic.claude-code/open?session=${sessionId}&prompt=${encPrompt}`
+    : `vscode://anthropic.claude-code/open?prompt=${encPrompt}`;
+
   try {
     if (platform() === 'win32') {
-      execSync(`cmd.exe /c start "" "${uri}"`, { stdio: 'ignore' });
+      execSync(`powershell.exe -NoProfile -Command "Start-Process '${uri}'"`, { stdio: 'ignore' });
     } else if (platform() === 'darwin') {
       execSync(`open "${uri}"`, { stdio: 'ignore' });
     } else {
@@ -589,7 +593,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   // Auto-connect to IDE or isolate based on visibility mode
   if (isPanel) {
-    openVscodeUri(sessionId, options.prompt);
+    openVscodeUri(options.resume || null, options.prompt);
     if (!options.connectIde && !env.CLAUDE_CODE_AUTO_CONNECT_IDE) {
       env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'true';
     }

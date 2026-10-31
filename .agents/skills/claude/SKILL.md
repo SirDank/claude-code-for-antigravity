@@ -1,6 +1,6 @@
 ---
 name: claude
-description: Unified bridge to Claude Code. Execute autonomous tasks, run adversarial code reviews, plan architectures, and isolate edits in Git worktrees with live VS Code panel visibility and maximum reasoning effort.
+description: Unified bridge to Claude Code. Execute autonomous tasks, run adversarial code reviews, plan architectures, and isolate edits in Git worktrees with VS Code IDE integration and maximum reasoning effort.
 license: Apache-2.0
 compatibility: node>=18.0.0
 metadata:
@@ -16,7 +16,7 @@ Offload tasks, conduct cross-model adversarial reviews, plan system architecture
 - **Maximum Reasoning Effort**: Always runs with `--effort max` (and Ultracode where available) to give free and paid models maximum thinking depth.
 - **Unlimited Turns**: No arbitrary turn limits by default; runs to natural completion without premature termination.
 - **Auto-Allowed Tools**: Pass `--allowedTools "*"` by default in non-interactive runs, preventing third-party MCP tool permissions from stalling execution.
-- **Automatic Live Panel Visibility**: Automatically detects active VS Code Claude Code panel (`~/.claude/ide/*.lock`), focuses the editor tab, and streams live tokens. Falls back to terminal stream or quiet digest when running headlessly in background agents.
+- **IDE & Visibility Integration**: Auto-detects active VS Code IDE instances (`~/.claude/ide/*.lock`), connects to the IDE MCP server for editor awareness and diff viewing, and supports one-click prompt handoff to the VS Code Claude Code panel (`openVscodeUri`). For live visual TUI streaming, runs in VS Code integrated terminal sessions.
 
 ## Core Modes
 Specify modes using `--mode <name>` or as the first word of your prompt:
@@ -77,3 +77,4 @@ Or inside Antigravity:
 - `--worktree`: Quarantine changes inside a clean Git worktree.
 - `--tools <list>`: Explicit whitelist of built-in tools (e.g. `Read,Grep,Glob`).
 - `--max-turns <n>`: Override unlimited turns with an explicit limit.
+
