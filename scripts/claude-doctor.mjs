@@ -16,7 +16,7 @@ import { resolveClaudeBinary, loadClaudeSettings } from './claude-runner.mjs';
  */
 export function ensureGitignoreSafeguards(repoRoot = process.cwd()) {
   const gitignorePath = join(repoRoot, '.gitignore');
-  const requiredPatterns = ['.claude/', '.claude-runs/', 'worktrees/'];
+  const requiredPatterns = ['.claude/', 'worktrees/'];
   let added = [];
 
   if (existsSync(gitignorePath)) {
@@ -158,7 +158,7 @@ export function runCheck() {
     if (added.length > 0) {
       results.push({ name: '.gitignore Safeguards', status: 'PASS', detail: `Auto-safeguarded (added ${added.join(', ')})` });
     } else {
-      results.push({ name: '.gitignore Safeguards', status: 'PASS', detail: 'Protected (.claude/, .claude-runs/, worktrees/ ignored)' });
+      results.push({ name: '.gitignore Safeguards', status: 'PASS', detail: 'Protected (.claude/, worktrees/ ignored)' });
     }
   } catch (err) {
     results.push({ name: '.gitignore Safeguards', status: 'WARN', detail: `Failed to verify .gitignore: ${err.message}` });

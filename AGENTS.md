@@ -17,5 +17,5 @@ Operating instructions for Antigravity and Claude agents collaborating in this w
 3. **Maximum Effort by Default**: Run with full reasoning effort (`--effort max`) so models (including free NVIDIA Build models like Nemotron 3 Ultra) reason at full depth.
 4. **IDE & Visibility Integration**: Connects to the active VS Code instance via MCP for workspace context/diffs, supports `--window` / `--visible` to spawn a live visible terminal window, `--verbose` for terminal logs, and default silent execution with Honey Lever 3 digest.
 5. **Independent verification**: Always verify worktree implementations with real test runs (`npm test` or project equivalent) before applying diffs.
-6. **Automatic Safeguards**: The doctor and runner ensure `.claude/`, `worktrees/`, and `.claude-runs/` are gitignored and worktrees pruned.
+6. **Automatic Safeguards**: The doctor and runner ensure `.claude/` and `worktrees/` are gitignored and worktrees pruned.
 

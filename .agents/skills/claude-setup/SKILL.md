@@ -39,7 +39,7 @@ The doctor verifies 7 preflight conditions:
 4. **Authentication Status**: Credential file or environment token validity.
 5. **Antigravity CLI**: Detection of `agy` executable or VS Code integration.
 6. **Claude VS Code Extension**: Active session lockfile detection.
-7. **.gitignore Safeguards**: Auto-appends `.claude/*`, `!.claude/skills/`, `.claude-runs/`, and `worktrees/` if missing.
+7. **.gitignore Safeguards**: Auto-appends `.claude/*`, `!.claude/skills/`, and `worktrees/` if missing.
 
 ## Resolution Paths
 
