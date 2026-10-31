@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, openVscodeUri, TASK_PRESETS } from '../scripts/claude-runner.mjs';
+import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, ensureNvidiaProxy, TASK_PRESETS } from '../scripts/claude-runner.mjs';
 
 test('parseArgs correctly parses CLI options', () => {
   const argv = [
@@ -9,8 +9,8 @@ test('parseArgs correctly parses CLI options', () => {
     '--max-turns', '10',
     '--max-budget-usd', '2.50',
     '--permission-mode', 'acceptEdits',
-    '--open-vscode',
-    '--visible'
+    '--headless',
+    '--verbose'
   ];
 
   const opts = parseArgs(argv);
@@ -19,8 +19,8 @@ test('parseArgs correctly parses CLI options', () => {
   assert.equal(opts.maxTurns, 10);
   assert.equal(opts.maxBudgetUsd, 2.50);
   assert.equal(opts.permissionMode, 'acceptEdits');
-  assert.equal(opts.openVscode, true);
-  assert.equal(opts.visible, true);
+  assert.equal(opts.headless, true);
+  assert.equal(opts.verbose, true);
 });
 
 test('parseArgs applies task preset configurations', () => {
@@ -89,12 +89,10 @@ test('extractJson extracts JSON from output with warning prefixes', () => {
 
 test('resolveVisibilityMode honors explicit flags and cascades correctly', () => {
   assert.equal(resolveVisibilityMode({ headless: true }), 'headless');
-  assert.equal(resolveVisibilityMode({ visible: true }), 'panel');
-  assert.equal(resolveVisibilityMode({ openVscode: true }), 'panel');
+  assert.equal(resolveVisibilityMode({ verbose: true }), 'terminal');
 
-  // Automatic cascade should return 'panel', 'terminal', or 'headless'
   const mode = resolveVisibilityMode({});
-  assert.ok(['panel', 'terminal', 'headless'].includes(mode));
+  assert.ok(['terminal', 'headless'].includes(mode));
 });
 
 test('formatDigest enforces compact digest bounds (<2000 chars)', () => {
@@ -127,9 +125,6 @@ test('formatDigest handles turn limit errors without dumping raw json', () => {
   assert.ok(!digest.includes('"subtype":"error_max_turns"'));
 });
 
-test('openVscodeUri handles fresh and resumed sessions', () => {
-  assert.equal(typeof openVscodeUri, 'function');
-  // Should return true or false without crashing
-  const freshResult = openVscodeUri(null, 'Test fresh prompt');
-  assert.equal(typeof freshResult, 'boolean');
+test('ensureNvidiaProxy exports valid function', () => {
+  assert.equal(typeof ensureNvidiaProxy, 'function');
 });

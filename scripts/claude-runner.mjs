@@ -179,8 +179,6 @@ export function parseArgs(args) {
     worktree: false,
     safeMode: false,
     connectIde: false,
-    openVscode: false,
-    visible: false,
     headless: false,
     systemPrompt: null,
     verbose: false,
@@ -235,10 +233,6 @@ export function parseArgs(args) {
       options.safeMode = true;
     } else if (arg === '--connect-ide') {
       options.connectIde = true;
-    } else if (arg === '--open-vscode') {
-      options.openVscode = true;
-    } else if (arg === '--visible') {
-      options.visible = true;
     } else if (arg === '--headless') {
       options.headless = true;
     } else if (arg === '--append-system-prompt' && args[i + 1]) {
@@ -390,28 +384,13 @@ export function isIdeActive() {
 }
 
 /**
- * Determines runtime visibility mode based on explicit flags or automatic detection:
- * 1. Explicit override (--headless or --visible/--open-vscode)
- * 2. Auto-detect active VS Code Claude Code instance -> 'panel'
- * 3. Auto-detect interactive TTY -> 'terminal'
- * 4. Fallback -> 'headless'
+ * Determines runtime visibility mode:
+ * - 'headless': silent background execution with Honey digest return (default for agent delegation)
+ * - 'terminal': streams live stdout/stderr directly (when run interactively in a TTY or with --verbose)
  */
 export function resolveVisibilityMode(options = {}) {
   if (options.headless) return 'headless';
-  if (options.visible || options.openVscode) return 'panel';
-
-  // 1. Detect and show live on VS Code panel
-  const activeIde = isIdeActive();
-  if (activeIde) {
-    return 'panel';
-  }
-
-  // 2. Detect and show live on terminal
-  if (process.stdout.isTTY) {
-    return 'terminal';
-  }
-
-  // 3. Fallback to headless
+  if (options.verbose || process.stdout.isTTY) return 'terminal';
   return 'headless';
 }
 
@@ -532,31 +511,6 @@ export async function ensureNvidiaProxy() {
   return false;
 }
 
-/**
- * Opens VS Code URI handoff handler to show prompt in the Claude Code tab.
- * Note: Session ID is only passed if resuming a known saved session.
- * For fresh prompts, passing an unknown session ID causes VS Code to drop initialPrompt.
- */
-export function openVscodeUri(sessionId = null, promptText = '') {
-  const encPrompt = encodeURIComponent(promptText || '');
-  const uri = sessionId
-    ? `vscode://anthropic.claude-code/open?session=${sessionId}&prompt=${encPrompt}`
-    : `vscode://anthropic.claude-code/open?prompt=${encPrompt}`;
-
-  try {
-    if (platform() === 'win32') {
-      execSync(`powershell.exe -NoProfile -Command "Start-Process '${uri}'"`, { stdio: 'ignore' });
-    } else if (platform() === 'darwin') {
-      execSync(`open "${uri}"`, { stdio: 'ignore' });
-    } else {
-      execSync(`xdg-open "${uri}"`, { stdio: 'ignore' });
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function printHelp() {
   console.log(`
 Usage: node scripts/claude-runner.mjs [options]
@@ -569,11 +523,11 @@ Quota-Saving Presets:
                                   review      - Fast first-pass diff audit
 
 Visibility Options:
-  --visible                     Open active Claude Code tab & stream live stdout
-  --headless                    Run silently in background with digest return
+  --verbose                     Stream live CLI logs to stdout
+  --headless                    Run silently in background with compact Honey digest return
 
 Execution Options:
-  --mode <read|worktree>        Task mode: 'read' (read-only) or 'worktree' (code modification)
+  --mode <auto|plan|edit|manual> Permission and isolation mode
   --prompt <string>             Instruction prompt for Claude Code
   --prompt-file <path>          File containing instruction prompt
   --session-id <uuid>           Custom session identifier
@@ -581,12 +535,10 @@ Execution Options:
   --tools <list>                Allowed tool list (e.g. "Read,Grep,Glob")
   --allowedTools <list>         Permission auto-grant list
   --permission-mode <mode>      'dontAsk', 'acceptEdits', 'auto', 'bypassPermissions'
-  --max-turns <n>               Maximum turns (default: 15)
+  --max-turns <n>               Maximum turns (default: unlimited)
   --max-budget-usd <amount>     Maximum budget in USD
   --connect-ide                 Allow auto-connecting to VS Code extension MCP server
-  --open-vscode                 Open session in Claude Code VS Code panel upon completion
   --safe-mode                   Disable third-party hooks and untrusted configurations
-  --verbose                     Print raw streaming logs
   --help, -h                    Show this help screen
 `);
 }
@@ -628,12 +580,10 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   const sessionId = options.sessionId || randomUUID();
   const visibility = resolveVisibilityMode(options);
-  const isPanel = visibility === 'panel';
-  const isLiveStream = visibility === 'panel' || visibility === 'terminal' || options.verbose;
+  const isLiveStream = visibility === 'terminal' || options.verbose;
 
-  // Auto-connect to IDE or isolate based on visibility mode
-  if (isPanel) {
-    openVscodeUri(options.resume || null, options.prompt);
+  // Auto-connect to VS Code MCP server if IDE is running
+  if (isIdeActive()) {
     if (!options.connectIde && !env.CLAUDE_CODE_AUTO_CONNECT_IDE) {
       env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'true';
     }
@@ -643,7 +593,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   const claudeArgs = buildClaudeArgs({ ...options, sessionId });
 
-  if (options.verbose) {
+  if (isLiveStream) {
     console.log(`[Runner] Executing (mode: ${visibility}): ${binary} ${claudeArgs.join(' ')}`);
   }
 
@@ -658,14 +608,14 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   child.stdout.on('data', chunk => {
     stdoutBuffer += chunk.toString();
-    if (options.verbose) {
+    if (isLiveStream) {
       process.stdout.write(chunk);
     }
   });
 
   child.stderr.on('data', chunk => {
     stderrBuffer += chunk.toString();
-    if (options.verbose) {
+    if (isLiveStream) {
       process.stderr.write(chunk);
     }
   });

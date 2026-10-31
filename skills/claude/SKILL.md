@@ -16,7 +16,7 @@ Offload tasks, conduct cross-model adversarial reviews, plan system architecture
 - **Maximum Reasoning Effort**: Always runs with `--effort max` (and Ultracode where available) to give free and paid models maximum thinking depth.
 - **Unlimited Turns**: No arbitrary turn limits by default; runs to natural completion without premature termination.
 - **Auto-Allowed Tools**: Pass `--allowedTools "*"` by default in non-interactive runs, preventing third-party MCP tool permissions from stalling execution.
-- **IDE & Visibility Integration**: Auto-detects active VS Code IDE instances (`~/.claude/ide/*.lock`), connects to the IDE MCP server for editor awareness and diff viewing, and supports one-click prompt handoff to the VS Code Claude Code panel (`openVscodeUri`). For live visual TUI streaming, runs in VS Code integrated terminal sessions.
+- **IDE Integration & Protocol Bridge**: Auto-detects active VS Code IDE instances (`~/.claude/ide/*.lock`), connects to the IDE MCP server for editor context and diffs, and transparently routes through the local NVIDIA proxy for free, unlimited frontier reasoning.
 
 ## Core Modes
 Specify modes using `--mode <name>` or as the first word of your prompt:
