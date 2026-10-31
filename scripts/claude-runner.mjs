@@ -451,14 +451,37 @@ export function runInTerminalWindow({ binary, options, env, sessionId }) {
   const cliArgs = buildInteractiveCliArgs({ ...options, sessionId });
 
   if (process.platform === 'win32') {
+    const launcherScript = join(tmpdir(), `claude-live-${sessionId}.ps1`);
+    const envLines = Object.entries(env)
+      .filter(([k]) => k.startsWith('ANTHROPIC_') || k.startsWith('NVIDIA_') || k.startsWith('CLAUDE_'))
+      .map(([k, v]) => `$env:${k} = "${String(v).replace(/"/g, '`"')}"`)
+      .join('\n');
+
+    const psContent = `
+${envLines}
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Claude Code CLI (Native Live Window)" -ForegroundColor Cyan
+Write-Host "  Model: nvidia/nemotron-3-ultra-550b-a55b[1m]" -ForegroundColor DarkGray
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+$argsList = @(
+${cliArgs.map(a => `  ${JSON.stringify(a)}`).join(',\n')}
+)
+& "${binary}" @argsList
+`;
+    writeFileSync(launcherScript, psContent, 'utf-8');
+
     const child = spawn('cmd.exe', [
       '/c',
       'start',
-      'Claude Code CLI',
-      binary,
-      ...cliArgs
+      'Claude Code CLI Live',
+      'powershell',
+      '-NoExit',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      launcherScript
     ], {
-      env,
       detached: true,
       stdio: 'ignore',
       windowsHide: false
