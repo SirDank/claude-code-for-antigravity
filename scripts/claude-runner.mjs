@@ -403,87 +403,90 @@ export function resolveVisibilityMode(options = {}) {
 }
 
 /**
- * Spawns Claude Code inside a visible external terminal window (Windows, macOS, Linux)
- * so the user can watch execution live while output is captured to an artifact file.
+ * Builds interactive CLI arguments for spawning Claude Code in a live terminal window.
+ * Omits headless flags (-p, --output-format json) so Claude Code displays its full interactive
+ * terminal UI with retro mascot banner, streaming tools, spinners, and full harness capabilities.
  */
-export function runInTerminalWindow({ binary, claudeArgs, env, sessionId, artifactPath }) {
-  const tmpDir = resolve('.agents', 'tmp');
-  if (!existsSync(tmpDir)) {
-    mkdirSync(tmpDir, { recursive: true });
+export function buildInteractiveCliArgs(options = {}) {
+  const flags = [];
+
+  flags.push('--effort', options.effort || 'max');
+
+  const mode = options.mode || 'auto';
+  if (mode === 'plan') {
+    flags.push('--permission-mode', 'plan');
+  } else if (mode === 'edit' || mode === 'worktree') {
+    flags.push('--permission-mode', 'acceptEdits');
+  } else if (mode === 'manual') {
+    flags.push('--permission-mode', 'manual');
   }
 
-  if (process.platform === 'win32') {
-    const scriptPath = join(tmpDir, `run-${sessionId}.ps1`);
-    const psScript = `
-$OutputEncoding = [System.Text.Encoding]::UTF8
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Claude Code Live Execution" -ForegroundColor Cyan
-Write-Host "  Model: nvidia/nemotron-3-ultra-550b-a55b[1m]" -ForegroundColor DarkGray
-Write-Host "  Session: ${sessionId}" -ForegroundColor DarkGray
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host ""
-$argsList = @(
-${claudeArgs.map(a => `  ${JSON.stringify(a)}`).join(',\n')}
-)
-& "${binary}" @argsList | Tee-Object -FilePath "${artifactPath}"
-$code = $LASTEXITCODE
-Write-Host ""
-if ($code -ne 0) {
-  Write-Host "Execution stopped with code $code. Press Enter to close..." -ForegroundColor Red
-  [void][System.Console]::ReadLine()
-} else {
-  Write-Host "Execution completed successfully. Closing in 2 seconds..." -ForegroundColor Green
-  Start-Sleep -Seconds 2
-}
-exit $code
-`;
-    writeFileSync(scriptPath, psScript, 'utf-8');
+  if (mode === 'worktree' || options.worktree) {
+    flags.push('--worktree');
+  }
 
+  if (options.tools) {
+    flags.push('--tools', options.tools);
+  }
+  if (options.allowedTools) {
+    flags.push('--allowedTools', options.allowedTools);
+  }
+  if (options.sessionId) {
+    flags.push('--session-id', options.sessionId);
+  }
+
+  const finalPrompt = options.prompt || options.task || '';
+  if (finalPrompt) {
+    flags.push(finalPrompt);
+  }
+
+  return flags;
+}
+
+/**
+ * Spawns the native Claude Code CLI inside a visible external terminal window (Windows, macOS, Linux)
+ * so the user can interact and watch execution live with full access to Claude tools & harness features.
+ */
+export function runInTerminalWindow({ binary, options, env, sessionId }) {
+  const cliArgs = buildInteractiveCliArgs({ ...options, sessionId });
+
+  if (process.platform === 'win32') {
     const child = spawn('cmd.exe', [
       '/c',
       'start',
-      '/wait',
-      `Claude Code Live - ${sessionId.slice(0, 8)}`,
-      'powershell',
-      '-NoProfile',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      scriptPath
+      'Claude Code CLI',
+      binary,
+      ...cliArgs
     ], {
+      env,
+      detached: true,
+      stdio: 'ignore',
       windowsHide: false
     });
+    child.unref();
 
-    return new Promise((resolvePromise) => {
-      child.on('close', code => {
-        try { if (existsSync(scriptPath)) unlinkSync(scriptPath); } catch {}
-        let output = '';
-        if (existsSync(artifactPath)) {
-          const buf = readFileSync(artifactPath);
-          output = (buf[0] === 0xff && buf[1] === 0xfe) ? buf.toString('utf16le') : buf.toString('utf8');
-        }
-        resolvePromise({ code: code || 0, output });
-      });
-    });
+    return { status: 'LAUNCHED', sessionId, binary, cliArgs };
   }
 
-  // Fallback for non-Windows platforms
-  return new Promise((resolvePromise) => {
-    const child = spawn(binary, claudeArgs, {
+  if (process.platform === 'darwin') {
+    const script = `"${binary}" ${cliArgs.map(a => `"${a.replace(/"/g, '\\"')}"`).join(' ')}`;
+    const child = spawn('osascript', ['-e', `tell application "Terminal" to do script "${script}"`], {
       env,
-      stdio: ['ignore', 'pipe', 'pipe']
+      detached: true,
+      stdio: 'ignore'
     });
+    child.unref();
+    return { status: 'LAUNCHED', sessionId, binary, cliArgs };
+  }
 
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', d => { stdout += d.toString(); });
-    child.stderr.on('data', d => { stderr += d.toString(); });
-    child.on('close', code => {
-      writeFileSync(artifactPath, stdout || JSON.stringify({ stdout, stderr }, null, 2));
-      resolvePromise({ code: code || 0, output: stdout });
-    });
+  // Linux / Unix fallback
+  const child = spawn(binary, cliArgs, {
+    env,
+    detached: true,
+    stdio: 'ignore'
   });
+  child.unref();
+  return { status: 'LAUNCHED', sessionId, binary, cliArgs };
 }
 
 /**
@@ -691,22 +694,18 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   }
   const artifactPath = join(runDir, `${sessionId}.json`);
 
-  // Spawns visible external terminal window when window mode is active
+  // Spawns visible external terminal window running native Claude Code CLI
   if (visibility === 'window') {
-    const { code, output } = await runInTerminalWindow({ binary, claudeArgs, env, sessionId, artifactPath });
-
-    if (options.mode === 'worktree' || options.worktree) {
-      try { execSync('git worktree prune', { stdio: 'ignore' }); } catch {}
-    }
-
-    if (code === 0) {
-      console.log(formatDigest(output, artifactPath, sessionId));
-      process.exit(0);
-    } else {
-      console.error(`=== CLAUDE RUN FAILED (exit code: ${code}) ===`);
-      if (output) console.log(formatDigest(output, artifactPath, sessionId));
-      process.exit(code || 1);
-    }
+    const launch = runInTerminalWindow({ binary, options, env, sessionId });
+    console.log([
+      '=== CLAUDE CODE CLI LAUNCHED ===',
+      `Session ID: ${launch.sessionId}`,
+      `Task: ${options.prompt || options.task || '(interactive)'}`,
+      'Model: nvidia/nemotron-3-ultra-550b-a55b[1m]',
+      'Status: Running natively in live Claude Code CLI window with full tool and harness access.',
+      '================================'
+    ].join('\n'));
+    process.exit(0);
   }
 
   if (isLiveStream) {
