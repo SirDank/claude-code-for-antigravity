@@ -180,6 +180,7 @@ export function parseArgs(args) {
     safeMode: false,
     connectIde: false,
     headless: false,
+    window: false,
     systemPrompt: null,
     verbose: false,
     extraArgs: []
@@ -235,6 +236,8 @@ export function parseArgs(args) {
       options.connectIde = true;
     } else if (arg === '--headless') {
       options.headless = true;
+    } else if (arg === '--window' || arg === '--visible' || arg === '--terminal') {
+      options.window = true;
     } else if (arg === '--append-system-prompt' && args[i + 1]) {
       options.systemPrompt = args[++i];
     } else if (arg === '--verbose') {
@@ -385,13 +388,102 @@ export function isIdeActive() {
 
 /**
  * Determines runtime visibility mode:
- * - 'headless': silent background execution with Honey digest return (default for agent delegation)
+ * - 'headless': silent background execution with Honey digest return
+ * - 'window': spawns a visible external terminal window for real-time live execution
  * - 'terminal': streams live stdout/stderr directly (when run interactively in a TTY or with --verbose)
  */
 export function resolveVisibilityMode(options = {}) {
   if (options.headless) return 'headless';
+  if (process.env.CI) return 'headless';
+  if (options.window || options.visible || options.terminal || process.env.CLAUDE_WINDOW === 'true') {
+    return 'window';
+  }
   if (options.verbose || process.stdout.isTTY) return 'terminal';
   return 'headless';
+}
+
+/**
+ * Spawns Claude Code inside a visible external terminal window (Windows, macOS, Linux)
+ * so the user can watch execution live while output is captured to an artifact file.
+ */
+export function runInTerminalWindow({ binary, claudeArgs, env, sessionId, artifactPath }) {
+  const tmpDir = resolve('.agents', 'tmp');
+  if (!existsSync(tmpDir)) {
+    mkdirSync(tmpDir, { recursive: true });
+  }
+
+  if (process.platform === 'win32') {
+    const scriptPath = join(tmpDir, `run-${sessionId}.ps1`);
+    const psScript = `
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Claude Code Live Execution" -ForegroundColor Cyan
+Write-Host "  Model: nvidia/nemotron-3-ultra-550b-a55b[1m]" -ForegroundColor DarkGray
+Write-Host "  Session: ${sessionId}" -ForegroundColor DarkGray
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+$argsList = @(
+${claudeArgs.map(a => `  ${JSON.stringify(a)}`).join(',\n')}
+)
+& "${binary}" @argsList | Tee-Object -FilePath "${artifactPath}"
+$code = $LASTEXITCODE
+Write-Host ""
+if ($code -ne 0) {
+  Write-Host "Execution stopped with code $code. Press Enter to close..." -ForegroundColor Red
+  [void][System.Console]::ReadLine()
+} else {
+  Write-Host "Execution completed successfully. Closing in 2 seconds..." -ForegroundColor Green
+  Start-Sleep -Seconds 2
+}
+exit $code
+`;
+    writeFileSync(scriptPath, psScript, 'utf-8');
+
+    const child = spawn('cmd.exe', [
+      '/c',
+      'start',
+      '/wait',
+      `Claude Code Live - ${sessionId.slice(0, 8)}`,
+      'powershell',
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      scriptPath
+    ], {
+      windowsHide: false
+    });
+
+    return new Promise((resolvePromise) => {
+      child.on('close', code => {
+        try { if (existsSync(scriptPath)) unlinkSync(scriptPath); } catch {}
+        let output = '';
+        if (existsSync(artifactPath)) {
+          const buf = readFileSync(artifactPath);
+          output = (buf[0] === 0xff && buf[1] === 0xfe) ? buf.toString('utf16le') : buf.toString('utf8');
+        }
+        resolvePromise({ code: code || 0, output });
+      });
+    });
+  }
+
+  // Fallback for non-Windows platforms
+  return new Promise((resolvePromise) => {
+    const child = spawn(binary, claudeArgs, {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', d => { stdout += d.toString(); });
+    child.stderr.on('data', d => { stderr += d.toString(); });
+    child.on('close', code => {
+      writeFileSync(artifactPath, stdout || JSON.stringify({ stdout, stderr }, null, 2));
+      resolvePromise({ code: code || 0, output: stdout });
+    });
+  });
 }
 
 /**
@@ -593,6 +685,30 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   const claudeArgs = buildClaudeArgs({ ...options, sessionId });
 
+  const runDir = resolve('.agents', 'tmp', 'claude-runs');
+  if (!existsSync(runDir)) {
+    mkdirSync(runDir, { recursive: true });
+  }
+  const artifactPath = join(runDir, `${sessionId}.json`);
+
+  // Spawns visible external terminal window when window mode is active
+  if (visibility === 'window') {
+    const { code, output } = await runInTerminalWindow({ binary, claudeArgs, env, sessionId, artifactPath });
+
+    if (options.mode === 'worktree' || options.worktree) {
+      try { execSync('git worktree prune', { stdio: 'ignore' }); } catch {}
+    }
+
+    if (code === 0) {
+      console.log(formatDigest(output, artifactPath, sessionId));
+      process.exit(0);
+    } else {
+      console.error(`=== CLAUDE RUN FAILED (exit code: ${code}) ===`);
+      if (output) console.log(formatDigest(output, artifactPath, sessionId));
+      process.exit(code || 1);
+    }
+  }
+
   if (isLiveStream) {
     console.log(`[Runner] Executing (mode: ${visibility}): ${binary} ${claudeArgs.join(' ')}`);
   }
@@ -635,14 +751,6 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   process.on('SIGTERM', () => onSignal('SIGTERM'));
 
   child.on('close', code => {
-    // Generate artifact path
-    const runDir = resolve('.agents', 'tmp', 'claude-runs');
-    if (!existsSync(runDir)) {
-      mkdirSync(runDir, { recursive: true });
-    }
-
-    const artifactPath = join(runDir, `${sessionId}.json`);
-
     try {
       writeFileSync(artifactPath, stdoutBuffer || JSON.stringify({ stdout: stdoutBuffer, stderr: stderrBuffer }, null, 2));
     } catch {}

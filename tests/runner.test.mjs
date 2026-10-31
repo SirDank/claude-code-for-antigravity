@@ -90,9 +90,10 @@ test('extractJson extracts JSON from output with warning prefixes', () => {
 test('resolveVisibilityMode honors explicit flags and cascades correctly', () => {
   assert.equal(resolveVisibilityMode({ headless: true }), 'headless');
   assert.equal(resolveVisibilityMode({ verbose: true }), 'terminal');
+  assert.equal(resolveVisibilityMode({ window: true }), 'window');
 
   const mode = resolveVisibilityMode({});
-  assert.ok(['terminal', 'headless'].includes(mode));
+  assert.ok(['terminal', 'headless', 'window'].includes(mode));
 });
 
 test('formatDigest enforces compact digest bounds (<2000 chars)', () => {

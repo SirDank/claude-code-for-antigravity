@@ -72,7 +72,8 @@ Or inside Antigravity:
 ## Options Reference
 - `--mode <auto|plan|edit|manual>`: Execution mode and permission policy.
 - `--effort <max|xhigh|high|medium|low>`: Reasoning effort (default: `max`).
-- `--visible`: Force-focus Claude Code panel in VS Code.
+- `--window`, `--visible`: Spawns a visible external terminal window to watch execution live in real time.
+- `--verbose`: Streams live CLI logs to stdout in current terminal.
 - `--headless`: Force quiet background execution returning compact Honey Lever 3 digest.
 - `--worktree`: Quarantine changes inside a clean Git worktree.
 - `--tools <list>`: Explicit whitelist of built-in tools (e.g. `Read,Grep,Glob`).
