@@ -7,7 +7,7 @@
 
 import { spawn, execSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { homedir, platform, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -458,6 +458,8 @@ export function runInTerminalWindow({ binary, options, env, sessionId }) {
       .join('\n');
 
     const psContent = `
+$OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 ${envLines}
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Claude Code CLI (Native Live Window)" -ForegroundColor Cyan
@@ -468,27 +470,35 @@ $argsList = @(
 ${cliArgs.map(a => `  ${JSON.stringify(a)}`).join(',\n')}
 )
 & "${binary}" @argsList
+$code = $LASTEXITCODE
+Write-Host ""
+Write-Host "Session finished. Press Enter to close window..." -ForegroundColor Green
+[void][System.Console]::ReadLine()
+exit $code
 `;
     writeFileSync(launcherScript, psContent, 'utf-8');
 
     const child = spawn('cmd.exe', [
       '/c',
       'start',
+      '/wait',
       'Claude Code CLI Live',
       'powershell',
-      '-NoExit',
+      '-NoProfile',
       '-ExecutionPolicy',
       'Bypass',
       '-File',
       launcherScript
     ], {
-      detached: true,
-      stdio: 'ignore',
       windowsHide: false
     });
-    child.unref();
 
-    return { status: 'LAUNCHED', sessionId, binary, cliArgs };
+    return new Promise(resolve => {
+      child.on('close', code => {
+        try { unlinkSync(launcherScript); } catch {}
+        resolve({ status: 'COMPLETED', code: code || 0, sessionId });
+      });
+    });
   }
 
   if (process.platform === 'darwin') {
@@ -719,16 +729,16 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   // Spawns visible external terminal window running native Claude Code CLI
   if (visibility === 'window') {
-    const launch = runInTerminalWindow({ binary, options, env, sessionId });
+    console.log(`[Runner] Spawning visible Claude Code CLI window (Session: ${sessionId})...`);
+    const launch = await runInTerminalWindow({ binary, options, env, sessionId });
     console.log([
-      '=== CLAUDE CODE CLI LAUNCHED ===',
-      `Session ID: ${launch.sessionId}`,
-      `Task: ${options.prompt || options.task || '(interactive)'}`,
-      'Model: nvidia/nemotron-3-ultra-550b-a55b[1m]',
-      'Status: Running natively in live Claude Code CLI window with full tool and harness access.',
-      '================================'
+      '=== CLAUDE CODE CLI SESSION COMPLETED ===',
+      `Session ID: ${sessionId}`,
+      `Exit Code: ${launch.code || 0}`,
+      'Status: Window session finished successfully.',
+      '========================================='
     ].join('\n'));
-    process.exit(0);
+    process.exit(launch.code || 0);
   }
 
   if (isLiveStream) {
