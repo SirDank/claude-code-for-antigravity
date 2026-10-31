@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, buildClaudeArgs, formatDigest, isIdeActive, resolveVisibilityMode, TASK_PRESETS } from '../scripts/claude-runner.mjs';
+import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, TASK_PRESETS } from '../scripts/claude-runner.mjs';
 
 test('parseArgs correctly parses CLI options', () => {
   const argv = [
@@ -46,6 +46,8 @@ test('buildClaudeArgs sets default flags for read mode', () => {
   assert.ok(flags.includes('dontAsk'), 'Read mode must default to dontAsk');
   assert.ok(flags.includes('--tools'), 'Read mode must restrict tools');
   assert.ok(flags.includes('Read,Grep,Glob'), 'Read mode must include read-only tools');
+  assert.ok(flags.includes('--allowedTools'), 'Must pass allowedTools');
+  assert.ok(flags.includes('*'), 'Default allowedTools must be * to avoid MCP stalls');
 });
 
 test('buildClaudeArgs sets flags for worktree mode', () => {
@@ -55,6 +57,16 @@ test('buildClaudeArgs sets flags for worktree mode', () => {
   assert.ok(flags.includes('--worktree'), 'Worktree mode must pass --worktree');
   assert.ok(flags.includes('--permission-mode'), 'Must specify permission mode');
   assert.ok(flags.includes('acceptEdits'), 'Worktree mode must default to acceptEdits');
+});
+
+test('extractJson extracts JSON from output with warning prefixes', () => {
+  const prefixedOutput = `[claude-code:unrecognized_model] {"model":"nvidia/nemotron-3-ultra-550b-a55b:free","query_source":"sdk"}
+{"result":"Verified finding list","total_cost_usd":0.05,"session_id":"test-123"}`;
+
+  const parsed = extractJson(prefixedOutput);
+  assert.ok(parsed, 'Must successfully parse JSON payload');
+  assert.equal(parsed.result, 'Verified finding list');
+  assert.equal(parsed.session_id, 'test-123');
 });
 
 test('resolveVisibilityMode honors explicit flags and cascades correctly', () => {

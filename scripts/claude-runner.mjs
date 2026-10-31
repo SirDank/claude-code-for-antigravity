@@ -291,6 +291,9 @@ export function buildClaudeArgs(options) {
   }
   if (options.allowedTools) {
     flags.push('--allowedTools', options.allowedTools);
+  } else {
+    // Auto-allow all tools in batch mode to prevent MCP plugin permission denials from stalling execution
+    flags.push('--allowedTools', '*');
   }
   if (options.disallowedTools) {
     flags.push('--disallowedTools', options.disallowedTools);
@@ -373,15 +376,65 @@ export function resolveVisibilityMode(options = {}) {
 }
 
 /**
+ * Resiliently extracts and parses JSON payload even when preceded by CLI warnings or logs.
+ */
+export function extractJson(str) {
+  if (typeof str !== 'string') return str;
+  const trimmed = str.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try { return JSON.parse(trimmed); } catch {}
+  }
+
+  // 1. Check lines from bottom up (result payload is typically on the last line)
+  const lines = str.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line.startsWith('{') && line.endsWith('}')) {
+      try {
+        const obj = JSON.parse(line);
+        if (obj && typeof obj === 'object') return obj;
+      } catch {}
+    }
+  }
+
+  // 2. If line splitting fails (multi-line JSON), find matching bracket block containing result/session_id
+  let end = str.lastIndexOf('}');
+  while (end !== -1) {
+    let depth = 0;
+    for (let i = end; i >= 0; i--) {
+      if (str[i] === '}') depth++;
+      else if (str[i] === '{') {
+        depth--;
+        if (depth === 0) {
+          try {
+            const candidate = JSON.parse(str.slice(i, end + 1));
+            if (candidate && (candidate.result !== undefined || candidate.session_id || candidate.type === 'result' || candidate.total_cost_usd !== undefined)) {
+              return candidate;
+            }
+          } catch {}
+        }
+      }
+    }
+    end = str.lastIndexOf('}', end - 1);
+  }
+
+  // 3. Fallback to outer brackets
+  const start = str.indexOf('{');
+  const lastEnd = str.lastIndexOf('}');
+  if (start !== -1 && lastEnd > start) {
+    try {
+      return JSON.parse(str.slice(start, lastEnd + 1));
+    } catch {}
+  }
+
+  return null;
+}
+
+/**
  * Formats a compact Honey Lever 3 digest from the raw Claude Code JSON output.
  */
 export function formatDigest(rawJson, artifactPath, sessionId) {
-  let parsed;
-  try {
-    parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
-  } catch {
-    parsed = { result: String(rawJson) };
-  }
+  const parsed = extractJson(rawJson) || { result: String(rawJson) };
 
   const sid = parsed.session_id || sessionId || 'unknown';
   const cost = parsed.total_cost_usd !== undefined ? `$${parsed.total_cost_usd.toFixed(4)}` : 'N/A';
@@ -521,14 +574,14 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   child.stdout.on('data', chunk => {
     stdoutBuffer += chunk.toString();
-    if (isLiveStream) {
+    if (options.verbose) {
       process.stdout.write(chunk);
     }
   });
 
   child.stderr.on('data', chunk => {
     stderrBuffer += chunk.toString();
-    if (isLiveStream) {
+    if (options.verbose) {
       process.stderr.write(chunk);
     }
   });
@@ -572,7 +625,11 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       process.exit(0);
     } else {
       console.error(`=== CLAUDE RUN FAILED (exit code: ${code}) ===`);
-      if (stderrBuffer) console.error(`Error:\n${stderrBuffer.trim()}`);
+      const cleanStderr = stderrBuffer.split(/\r?\n/)
+        .filter(l => !l.includes('unrecognized_model'))
+        .join('\n')
+        .trim();
+      if (cleanStderr) console.error(`Error:\n${cleanStderr}`);
       if (stdoutBuffer) console.log(formatDigest(stdoutBuffer, artifactPath, sessionId));
       process.exit(code || 1);
     }
