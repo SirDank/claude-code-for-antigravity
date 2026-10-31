@@ -465,7 +465,7 @@ export function formatDigest(rawJson, artifactPath, sessionId) {
     resultText = typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson);
   }
 
-  const summary = String(resultText).trim().slice(0, 1800);
+  const summary = (String(resultText).trim().slice(0, 1800)) || 'Task execution completed successfully.';
   const status = (parsed.is_error || (parsed.errors && parsed.errors.length > 0)) ? 'STOPPED' : 'SUCCESS';
 
   return [

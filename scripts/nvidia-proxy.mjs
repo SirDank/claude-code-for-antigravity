@@ -42,7 +42,10 @@ export function createProxyServer(apiKeyOverride = null) {
         // Convert Anthropic messages to OpenAI format
         const openaiMessages = [];
         if (anthropicReq.system) {
-          openaiMessages.push({ role: 'system', content: anthropicReq.system });
+          const sysContent = typeof anthropicReq.system === 'string'
+            ? anthropicReq.system
+            : (Array.isArray(anthropicReq.system) ? anthropicReq.system.map(s => s.text || '').join('\n') : String(anthropicReq.system));
+          openaiMessages.push({ role: 'system', content: sysContent });
         }
 
         if (Array.isArray(anthropicReq.messages)) {
@@ -66,10 +69,18 @@ export function createProxyServer(apiKeyOverride = null) {
                     }
                   });
                 } else if (part.type === 'tool_result') {
+                  let toolContent = '';
+                  if (typeof part.content === 'string') {
+                    toolContent = part.content;
+                  } else if (Array.isArray(part.content)) {
+                    toolContent = part.content.map(c => (typeof c === 'string' ? c : (c.text || JSON.stringify(c)))).join('\n');
+                  } else {
+                    toolContent = JSON.stringify(part.content ?? '');
+                  }
                   openaiMessages.push({
                     role: 'tool',
                     tool_call_id: part.tool_use_id,
-                    content: typeof part.content === 'string' ? part.content : JSON.stringify(part.content)
+                    content: toolContent
                   });
                 }
               }
@@ -84,9 +95,15 @@ export function createProxyServer(apiKeyOverride = null) {
           }
         }
 
-        // Build OpenAI payload
+        // Build OpenAI payload (strip [1m] context suffix and :free so NVIDIA NIM receives standard slug)
+        const requestedModel = anthropicReq.model || 'nvidia/nemotron-3-ultra-550b-a55b';
+        let upstreamModel = requestedModel.replace(/\[\d+m\]$/i, '').replace(/:free$/i, '');
+        if (upstreamModel.startsWith('claude-') || upstreamModel === 'default' || upstreamModel === 'best') {
+          upstreamModel = 'nvidia/nemotron-3-ultra-550b-a55b';
+        }
+
         const openaiPayload = {
-          model: anthropicReq.model || 'nvidia/nemotron-3-ultra-550b-a55b',
+          model: upstreamModel,
           messages: openaiMessages,
           max_tokens: anthropicReq.max_tokens || 8192,
           temperature: anthropicReq.temperature ?? 1,
@@ -187,6 +204,8 @@ export function createProxyServer(apiKeyOverride = null) {
         let blockIndex = 0;
         let isThinking = false;
         let isContent = false;
+        let stopReason = 'end_turn';
+        const activeToolCalls = new Map(); // tcIdx -> { blockIndex, id, name, closed }
         const reader = upstreamRes.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
@@ -207,11 +226,31 @@ export function createProxyServer(apiKeyOverride = null) {
             if (trimmed.startsWith('data: ')) {
               try {
                 const chunk = JSON.parse(trimmed.slice(6));
-                const delta = chunk.choices?.[0]?.delta;
+                const choice = chunk.choices?.[0];
+                const delta = choice?.delta;
+
+                if (choice?.finish_reason) {
+                  if (choice.finish_reason === 'tool_calls') {
+                    stopReason = 'tool_use';
+                  } else if (choice.finish_reason === 'stop') {
+                    stopReason = 'end_turn';
+                  } else {
+                    stopReason = choice.finish_reason;
+                  }
+                }
+
                 if (!delta) continue;
 
                 // 1. Thinking / reasoning delta
                 if (delta.reasoning_content) {
+                  if (isContent) {
+                    res.write(`event: content_block_stop\ndata: ${JSON.stringify({
+                      type: 'content_block_stop',
+                      index: blockIndex
+                    })}\n\n`);
+                    isContent = false;
+                    blockIndex++;
+                  }
                   if (!isThinking) {
                     isThinking = true;
                     res.write(`event: content_block_start\ndata: ${JSON.stringify({
@@ -253,6 +292,63 @@ export function createProxyServer(apiKeyOverride = null) {
                     delta: { type: 'text_delta', text: delta.content }
                   })}\n\n`);
                 }
+
+                // 3. Tool calls delta
+                if (Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0) {
+                  if (isThinking) {
+                    res.write(`event: content_block_stop\ndata: ${JSON.stringify({
+                      type: 'content_block_stop',
+                      index: blockIndex
+                    })}\n\n`);
+                    isThinking = false;
+                    blockIndex++;
+                  }
+                  if (isContent) {
+                    res.write(`event: content_block_stop\ndata: ${JSON.stringify({
+                      type: 'content_block_stop',
+                      index: blockIndex
+                    })}\n\n`);
+                    isContent = false;
+                    blockIndex++;
+                  }
+
+                  for (const tc of delta.tool_calls) {
+                    const tcIdx = tc.index ?? 0;
+                    let call = activeToolCalls.get(tcIdx);
+                    if (!call) {
+                      const callBlockIndex = blockIndex++;
+                      call = {
+                        blockIndex: callBlockIndex,
+                        id: tc.id || `call_${randomUUID().slice(0, 8)}`,
+                        name: tc.function?.name || 'tool',
+                        closed: false
+                      };
+                      activeToolCalls.set(tcIdx, call);
+
+                      res.write(`event: content_block_start\ndata: ${JSON.stringify({
+                        type: 'content_block_start',
+                        index: call.blockIndex,
+                        content_block: {
+                          type: 'tool_use',
+                          id: call.id,
+                          name: call.name,
+                          input: {}
+                        }
+                      })}\n\n`);
+                    }
+
+                    if (tc.function?.arguments) {
+                      res.write(`event: content_block_delta\ndata: ${JSON.stringify({
+                        type: 'content_block_delta',
+                        index: call.blockIndex,
+                        delta: {
+                          type: 'input_json_delta',
+                          partial_json: tc.function.arguments
+                        }
+                      })}\n\n`);
+                    }
+                  }
+                }
               } catch {}
             }
           }
@@ -266,10 +362,24 @@ export function createProxyServer(apiKeyOverride = null) {
           })}\n\n`);
         }
 
+        for (const call of activeToolCalls.values()) {
+          if (!call.closed) {
+            call.closed = true;
+            res.write(`event: content_block_stop\ndata: ${JSON.stringify({
+              type: 'content_block_stop',
+              index: call.blockIndex
+            })}\n\n`);
+          }
+        }
+
+        if (activeToolCalls.size > 0) {
+          stopReason = 'tool_use';
+        }
+
         // Send message_delta & message_stop
         res.write(`event: message_delta\ndata: ${JSON.stringify({
           type: 'message_delta',
-          delta: { stop_reason: 'end_turn' },
+          delta: { stop_reason: stopReason },
           usage: { output_tokens: 0 }
         })}\n\n`);
 
