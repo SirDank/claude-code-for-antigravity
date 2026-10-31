@@ -5,7 +5,7 @@
  * Validates skill frontmatter and synchronizes skills across targets.
  */
 
-import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, cpSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, cpSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 
 const isCheck = process.argv.includes('--check');
@@ -102,6 +102,12 @@ if (isCheck) {
       console.warn(`[WARN] Target directory does not exist: ${target}`);
       continue;
     }
+    for (const entry of readdirSync(target, { withFileTypes: true })) {
+      if (entry.isDirectory() && !skillFolders.includes(entry.name)) {
+        console.error(`[DRIFT] Stale folder in destination: ${join(target, entry.name)}`);
+        drifted = true;
+      }
+    }
     for (const folder of skillFolders) {
       const srcFile = join(skillsDir, folder, 'SKILL.md');
       const destFile = join(target, folder, 'SKILL.md');
@@ -129,6 +135,12 @@ if (isCheck) {
   for (const target of targets) {
     if (!existsSync(target)) {
       mkdirSync(target, { recursive: true });
+    }
+    // Clean stale folders in target
+    for (const entry of readdirSync(target, { withFileTypes: true })) {
+      if (entry.isDirectory() && !skillFolders.includes(entry.name)) {
+        rmSync(join(target, entry.name), { recursive: true, force: true });
+      }
     }
     for (const folder of skillFolders) {
       const src = join(skillsDir, folder);

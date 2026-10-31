@@ -42,12 +42,30 @@ test('buildClaudeArgs sets default flags for read mode', () => {
   assert.ok(flags.includes('-p'), 'Must contain headless flag -p');
   assert.ok(flags.includes('--output-format'), 'Must specify output format');
   assert.ok(flags.includes('json'), 'Must specify json format');
+  assert.ok(flags.includes('--effort'), 'Must specify effort');
+  assert.ok(flags.includes('max'), 'Must default to highest effort level');
+  assert.ok(!flags.includes('--max-turns'), 'Must not impose turn limit by default');
   assert.ok(flags.includes('--permission-mode'), 'Must specify permission mode');
   assert.ok(flags.includes('dontAsk'), 'Read mode must default to dontAsk');
   assert.ok(flags.includes('--tools'), 'Read mode must restrict tools');
   assert.ok(flags.includes('Read,Grep,Glob'), 'Read mode must include read-only tools');
   assert.ok(flags.includes('--allowedTools'), 'Must pass allowedTools');
   assert.ok(flags.includes('*'), 'Default allowedTools must be * to avoid MCP stalls');
+});
+
+test('buildClaudeArgs supports auto, plan, edit, manual modes', () => {
+  const autoFlags = buildClaudeArgs(parseArgs(['auto', 'Fix bug']));
+  assert.ok(autoFlags.includes('auto'), 'Must map auto mode to auto permission');
+
+  const planFlags = buildClaudeArgs(parseArgs(['plan', 'Design auth system']));
+  assert.ok(planFlags.includes('plan'), 'Must map plan mode to plan permission');
+
+  const editFlags = buildClaudeArgs(parseArgs(['edit', 'Implement endpoint']));
+  assert.ok(editFlags.includes('acceptEdits'), 'Must map edit mode to acceptEdits');
+  assert.ok(editFlags.includes('--worktree'), 'Edit mode must enable worktree isolation');
+
+  const manualFlags = buildClaudeArgs(parseArgs(['manual', 'Interactive query']));
+  assert.ok(manualFlags.includes('manual'), 'Must map manual mode to manual permission');
 });
 
 test('buildClaudeArgs sets flags for worktree mode', () => {

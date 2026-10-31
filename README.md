@@ -10,16 +10,13 @@ A cross-platform bridge and skill suite enabling **Google Antigravity** (VS Code
 
 ## Key Features
 
-- **Antigravity Quota Conservation**: Offload repetitive, mundane, or low-intelligence tasks to Claude Code using top free OpenRouter models (such as `nvidia/nemotron-3-ultra-550b-a55b:free`), preserving Antigravity's high-reasoning quota for architecture and critical problems.
-- **Quota-Saving Task Presets**: Built-in `--task [boilerplate|docs|scan|review]` shortcuts pre-configure the exact mode, tools, and turn limits for routine developer chores.
-- **Live Visibility vs Headless Mode**: Use `--visible` to focus the Claude Code tab in VS Code and stream token generation live to your terminal, or keep the default `--headless` for compact background digest execution.
-- **Multi-Stage Binary Discovery**: Automatically locates the Claude CLI binary from system `PATH`, VS Code extension caches (`anthropic.claude-code-*`), or custom `CLAUDE_PATH`.
-- **Cross-Model Adversarial Review (`/claude-review`)**: Dispatches `git diff` reviews to Claude Code acting as an independent Critic / Auditor gate (implementing the Antigravity `/boost` and `/teamwork` review patterns).
-- **Task Delegation (`/claude-delegate`)**: Offloads background research, root-cause debugging, or mundane tasks to Claude Code. Full raw transcripts are saved to disk, while a context-lean digest (<2,000 chars) is returned to Antigravity (Honey Lever 3).
-- **Automatic Repository Safeguards**: Auto-verifies and safeguards `.gitignore` against accidental commits of `.claude/`, `.agents/tmp/`, `.claude-runs/`, and `worktrees/`, and auto-prunes dead git worktrees.
-- **Test-Gated Worktree Implementation (`/claude-handoff`)**: Executes code modifications in an isolated Git worktree (`--worktree`) with independent Antigravity test verification before merging.
-- **VS Code Graphical Handoff (`/claude-vscode`)**: Bridges sessions directly into the Claude Code VS Code chat panel via the `vscode://anthropic.claude-code/open` URI handler for interactive human diff reviews and `/plan` approval.
-- **Cross-Platform & Zero Dependencies**: Built with pure Node.js (`.mjs`) for bulletproof execution on Windows, macOS, and Linux without shell hang issues or external npm packages.
+- **Unified `/claude` Powerhouse**: Consolidates task delegation, code review, architectural planning, and worktree isolation into a single intuitive slash command with native modes: `auto`, `plan`, `edit`, and `manual`.
+- **Maximum Reasoning Effort**: Always defaults to `--effort max` (and Ultracode where supported) so free OpenRouter models (like `nvidia/nemotron-3-ultra-550b-a55b:free`) and premium models reason at full cognitive depth.
+- **Unlimited Turns by Default**: Removes artificial turn caps so complex multi-file scans and large investigations run to natural completion without getting killed.
+- **Automatic Live Panel Visibility**: Automatically detects an active Claude Code tab in VS Code (`~/.claude/ide/*.lock`), opens the panel with your prompt, and streams execution.
+- **Dedicated Doctor (`/claude-setup`)**: Standalone preflight diagnostic tool verifying 7 runtime requirements, authentication, provider settings, and automatic `.gitignore` safeguards.
+- **Test-Gated Worktree Implementation (`/claude edit`)**: Quarantines code modifications in an isolated Git worktree (`--worktree`) with auto-cleanup (`git worktree prune`).
+- **Cross-Platform & Zero Dependencies**: Built with pure Node.js (`.mjs`) for bulletproof execution on Windows, macOS, and Linux without external npm packages.
 
 ---
 
@@ -55,52 +52,54 @@ A cross-platform bridge and skill suite enabling **Google Antigravity** (VS Code
 
 ## Quick Start
 
-### 1. Run Preflight Diagnostics
-Verify that your local environment, Claude binary, authentication, and provider settings are ready:
+### 1. Run Preflight Diagnostics (`/claude-setup`)
+Verify that your local environment, Claude binary, authentication, provider settings, and gitignore safeguards are ready:
 ```bash
 node scripts/claude-doctor.mjs
 ```
-Or use the slash command inside Antigravity:
+Or inside Antigravity:
 ```text
 /claude-setup
 ```
 
-### 2. Offload Tasks & Save Antigravity Quota
-Delegate routine or low-intelligence tasks to Claude Code using built-in presets:
+### 2. Autonomous Task Execution (`/claude`)
+Delegate tasks with maximum reasoning effort (`--effort max`) and unlimited turns:
 ```bash
-# Generate repetitive boilerplate
-node scripts/claude-runner.mjs --task boilerplate --prompt "Scaffold repository models"
-
-# Sweeping documentation updates
-node scripts/claude-runner.mjs --task docs --prompt "Add JSDoc comments to exports in src/"
-
-# Wide repository inventory
-node scripts/claude-runner.mjs --task scan --prompt "Map all route handlers and services"
-
-# Watch live in VS Code tab and terminal stream
-node scripts/claude-runner.mjs --task scan --prompt "Inspect codebase" --visible
+node scripts/claude-runner.mjs "Scan lib/src/services and list all TODO comments"
 ```
-Or use the slash command inside Antigravity:
+Or inside Antigravity:
 ```text
-/claude-delegate Investigate the cause of connection timeouts in src/network.ts
+/claude Scan lib/src/services and list all TODO comments
 ```
 
-### 3. Run Adversarial Review on Git Diff
-Audit staged or unstaged changes before committing:
+### 3. Adversarial Code Review (`/claude review` / `plan` mode)
+Audit staged or unstaged changes or specific files for edge cases and cross-platform bugs:
+```bash
+node scripts/claude-runner.mjs review lib/src/utils/platform_utils.dart
+```
+Or inside Antigravity:
 ```text
-/claude-review
+/claude review lib/src/utils/platform_utils.dart
 ```
 
-### 4. Implement in Isolated Worktree
-Safely isolate feature work in a dedicated worktree with test verification:
+### 4. System Architecture & Planning (`/claude plan`)
+Formulate detailed plans before modifying code:
+```bash
+node scripts/claude-runner.mjs plan "Design caching architecture for database service"
+```
+Or inside Antigravity:
 ```text
-/claude-handoff Implement user password reset flow with unit tests
+/claude plan Design caching architecture for database service
 ```
 
-### 5. Open in VS Code Sidebar
-Hand off an active session directly to Claude Code's VS Code graphical chat panel:
+### 5. Isolated Worktree Implementation (`/claude edit` / `edit` mode)
+Safely quarantine multi-file code modifications in a temporary Git worktree:
+```bash
+node scripts/claude-runner.mjs edit "Implement user authentication controller and unit tests"
+```
+Or inside Antigravity:
 ```text
-/claude-vscode
+/claude edit Implement user authentication controller and unit tests
 ```
 
 ---

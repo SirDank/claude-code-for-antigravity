@@ -163,15 +163,16 @@ export function loadClaudeSettings(startDir = process.cwd()) {
  */
 export function parseArgs(args) {
   const options = {
-    mode: 'read', // 'read' or 'worktree'
+    mode: 'auto', // 'auto', 'plan', 'edit', 'manual', 'read', 'worktree'
     task: null,   // preset: 'boilerplate', 'docs', 'scan', 'review'
+    effort: 'max',// highest effort by default (max, xhigh, high, medium, low)
     prompt: '',
     promptFile: null,
     tools: null,
     allowedTools: null,
     disallowedTools: null,
     permissionMode: null,
-    maxTurns: 15,
+    maxTurns: null, // Unlimited by default (no arbitrary limit)
     maxBudgetUsd: null,
     sessionId: null,
     resume: null,
@@ -186,10 +187,26 @@ export function parseArgs(args) {
     extraArgs: []
   };
 
-  for (let i = 0; i < args.length; i++) {
+  let startIndex = 0;
+  if (args.length > 0 && !args[0].startsWith('-')) {
+    const first = args[0].toLowerCase();
+    if (['auto', 'plan', 'edit', 'manual', 'review', 'scan'].includes(first)) {
+      if (first === 'review' || first === 'scan') {
+        options.task = first;
+        options.mode = first === 'review' ? 'plan' : 'auto';
+      } else {
+        options.mode = first;
+      }
+      startIndex = 1;
+    }
+  }
+
+  for (let i = startIndex; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--mode' && args[i + 1]) {
       options.mode = args[++i];
+    } else if (arg === '--effort' && args[i + 1]) {
+      options.effort = args[++i];
     } else if (arg === '--task' && args[i + 1]) {
       options.task = args[++i];
     } else if (arg === '--prompt' && args[i + 1]) {
@@ -230,6 +247,8 @@ export function parseArgs(args) {
       options.verbose = true;
     } else if (arg === '--help' || arg === '-h') {
       options.help = true;
+    } else if (!options.prompt && !arg.startsWith('-')) {
+      options.prompt = arg;
     } else {
       options.extraArgs.push(arg);
     }
@@ -265,8 +284,11 @@ export function buildClaudeArgs(options) {
     finalPrompt = readFileSync(options.promptFile, 'utf-8');
   }
 
-  flags.push(finalPrompt || 'Perform diagnostic check.');
+  flags.push(finalPrompt || 'Perform task.');
   flags.push('--output-format', 'json');
+
+  // Always use highest available effort level
+  flags.push('--effort', options.effort || 'max');
 
   if (options.sessionId) {
     flags.push('--session-id', options.sessionId);
@@ -275,30 +297,48 @@ export function buildClaudeArgs(options) {
     flags.push('--resume', options.resume);
   }
 
-  if (options.mode === 'worktree' || options.worktree) {
-    flags.push('--worktree');
-    flags.push('--permission-mode', options.permissionMode || 'acceptEdits');
-  } else {
-    // Mode 'read' defaults
-    flags.push('--permission-mode', options.permissionMode || 'dontAsk');
-    if (!options.tools && !options.allowedTools) {
-      flags.push('--tools', 'Read,Grep,Glob');
+  // Map modes to permission-mode
+  const mode = options.mode || 'auto';
+  let permMode = options.permissionMode;
+
+  if (!permMode) {
+    if (mode === 'plan') {
+      permMode = 'plan';
+    } else if (mode === 'edit' || mode === 'worktree') {
+      permMode = 'acceptEdits';
+    } else if (mode === 'manual') {
+      permMode = 'manual';
+    } else if (mode === 'read') {
+      permMode = 'dontAsk';
+    } else {
+      permMode = 'auto';
     }
+  }
+
+  flags.push('--permission-mode', permMode);
+
+  if (mode === 'worktree' || mode === 'edit' || options.worktree) {
+    flags.push('--worktree');
   }
 
   if (options.tools) {
     flags.push('--tools', options.tools);
+  } else if (mode === 'read' || mode === 'plan' || options.task === 'review' || options.task === 'scan') {
+    flags.push('--tools', 'Read,Grep,Glob');
   }
+
   if (options.allowedTools) {
     flags.push('--allowedTools', options.allowedTools);
   } else {
     // Auto-allow all tools in batch mode to prevent MCP plugin permission denials from stalling execution
     flags.push('--allowedTools', '*');
   }
+
   if (options.disallowedTools) {
     flags.push('--disallowedTools', options.disallowedTools);
   }
 
+  // Unlimited turns by default (only add if explicitly specified)
   if (options.maxTurns) {
     flags.push('--max-turns', String(options.maxTurns));
   }

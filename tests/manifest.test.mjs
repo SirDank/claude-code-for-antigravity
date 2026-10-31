@@ -33,7 +33,9 @@ test('Skills compliance and frontmatter validation', () => {
     .filter(d => d.isDirectory())
     .map(d => d.name);
 
-  assert.ok(folders.length >= 5, 'Must have at least 5 core skills');
+  assert.ok(folders.length >= 2, 'Must have at least 2 core skills');
+  assert.ok(folders.includes('claude'), 'Must include unified claude skill');
+  assert.ok(folders.includes('claude-setup'), 'Must include claude-setup skill');
 
   for (const folder of folders) {
     const file = join(skillsDir, folder, 'SKILL.md');
