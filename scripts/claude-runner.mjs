@@ -6,6 +6,7 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { homedir, platform } from 'node:os';
@@ -316,6 +317,62 @@ export function buildClaudeArgs(options) {
 }
 
 /**
+ * Detects if an active Claude Code extension instance is running in VS Code.
+ * Reads ~/.claude/ide/*.lock and tests if the process PID is currently alive.
+ */
+export function isIdeActive() {
+  const ideDir = join(homedir(), '.claude', 'ide');
+  if (!existsSync(ideDir)) return null;
+
+  try {
+    const locks = readdirSync(ideDir).filter(f => f.endsWith('.lock'));
+    for (const lock of locks) {
+      try {
+        const raw = readFileSync(join(ideDir, lock), 'utf-8');
+        const data = JSON.parse(raw);
+        if (data.pid) {
+          try {
+            process.kill(data.pid, 0);
+            return { port: lock.replace('.lock', ''), ...data };
+          } catch {
+            // Stale lockfile
+            continue;
+          }
+        }
+      } catch {}
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
+ * Determines runtime visibility mode based on explicit flags or automatic detection:
+ * 1. Explicit override (--headless or --visible/--open-vscode)
+ * 2. Auto-detect active VS Code Claude Code instance -> 'panel'
+ * 3. Auto-detect interactive TTY -> 'terminal'
+ * 4. Fallback -> 'headless'
+ */
+export function resolveVisibilityMode(options = {}) {
+  if (options.headless) return 'headless';
+  if (options.visible || options.openVscode) return 'panel';
+
+  // 1. Detect and show live on VS Code panel
+  const activeIde = isIdeActive();
+  if (activeIde) {
+    return 'panel';
+  }
+
+  // 2. Detect and show live on terminal
+  if (process.stdout.isTTY) {
+    return 'terminal';
+  }
+
+  // 3. Fallback to headless
+  return 'headless';
+}
+
+/**
  * Formats a compact Honey Lever 3 digest from the raw Claude Code JSON output.
  */
 export function formatDigest(rawJson, artifactPath, sessionId) {
@@ -328,14 +385,20 @@ export function formatDigest(rawJson, artifactPath, sessionId) {
 
   const sid = parsed.session_id || sessionId || 'unknown';
   const cost = parsed.total_cost_usd !== undefined ? `$${parsed.total_cost_usd.toFixed(4)}` : 'N/A';
-  const resultText = parsed.result || parsed.structured_output || (typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson));
   
-  // Truncate summary cleanly to avoid blowing up parent agent context window
+  let resultText = parsed.result || parsed.structured_output;
+  if (!resultText && parsed.errors && parsed.errors.length > 0) {
+    resultText = `Execution note: ${parsed.errors.join('; ')} (Turn limit reached). Consider increasing --max-turns for complex workflows.`;
+  } else if (!resultText) {
+    resultText = typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson);
+  }
+
   const summary = String(resultText).trim().slice(0, 1800);
+  const status = (parsed.is_error || (parsed.errors && parsed.errors.length > 0)) ? 'STOPPED' : 'SUCCESS';
 
   return [
     '=== CLAUDE RUN DIGEST ===',
-    `Status: SUCCESS`,
+    `Status: ${status}`,
     `Session ID: ${sid}`,
     `Total Cost: ${cost}`,
     `Run Artifact: ${artifactPath}`,
@@ -426,27 +489,31 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     }
   }
 
-  // Isolate headless calls from active VS Code chat panel lockfile unless explicitly requested
-  if (!options.connectIde && !env.CLAUDE_CODE_AUTO_CONNECT_IDE) {
-    env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'false';
-  }
+  const sessionId = options.sessionId || randomUUID();
+  const visibility = resolveVisibilityMode(options);
+  const isPanel = visibility === 'panel';
+  const isLiveStream = visibility === 'panel' || visibility === 'terminal' || options.verbose;
 
-  const sessionId = options.sessionId || `run-${Date.now()}`;
-
-  // If visible mode is enabled, activate the Claude Code tab in VS Code immediately
-  if (options.visible || options.openVscode) {
+  // Auto-connect to IDE or isolate based on visibility mode
+  if (isPanel) {
     openVscodeUri(sessionId, options.prompt);
+    if (!options.connectIde && !env.CLAUDE_CODE_AUTO_CONNECT_IDE) {
+      env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'true';
+    }
+  } else if (!options.connectIde && !env.CLAUDE_CODE_AUTO_CONNECT_IDE) {
+    env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'false';
   }
 
   const claudeArgs = buildClaudeArgs({ ...options, sessionId });
 
   if (options.verbose) {
-    console.log(`[Runner] Executing: ${binary} ${claudeArgs.join(' ')}`);
+    console.log(`[Runner] Executing (mode: ${visibility}): ${binary} ${claudeArgs.join(' ')}`);
   }
 
+  // Use 'ignore' on stdin to eliminate 3s hang while awaiting input
   const child = spawn(binary, claudeArgs, {
     env,
-    stdio: ['inherit', 'pipe', 'pipe']
+    stdio: ['ignore', 'pipe', 'pipe']
   });
 
   let stdoutBuffer = '';
@@ -454,14 +521,14 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   child.stdout.on('data', chunk => {
     stdoutBuffer += chunk.toString();
-    if (options.verbose || options.visible) {
+    if (isLiveStream) {
       process.stdout.write(chunk);
     }
   });
 
   child.stderr.on('data', chunk => {
     stderrBuffer += chunk.toString();
-    if (options.verbose || options.visible) {
+    if (isLiveStream) {
       process.stderr.write(chunk);
     }
   });

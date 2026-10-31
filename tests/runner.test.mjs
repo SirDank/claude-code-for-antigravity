@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, buildClaudeArgs, formatDigest, TASK_PRESETS } from '../scripts/claude-runner.mjs';
+import { parseArgs, buildClaudeArgs, formatDigest, isIdeActive, resolveVisibilityMode, TASK_PRESETS } from '../scripts/claude-runner.mjs';
 
 test('parseArgs correctly parses CLI options', () => {
   const argv = [
@@ -57,6 +57,16 @@ test('buildClaudeArgs sets flags for worktree mode', () => {
   assert.ok(flags.includes('acceptEdits'), 'Worktree mode must default to acceptEdits');
 });
 
+test('resolveVisibilityMode honors explicit flags and cascades correctly', () => {
+  assert.equal(resolveVisibilityMode({ headless: true }), 'headless');
+  assert.equal(resolveVisibilityMode({ visible: true }), 'panel');
+  assert.equal(resolveVisibilityMode({ openVscode: true }), 'panel');
+
+  // Automatic cascade should return 'panel', 'terminal', or 'headless'
+  const mode = resolveVisibilityMode({});
+  assert.ok(['panel', 'terminal', 'headless'].includes(mode));
+});
+
 test('formatDigest enforces compact digest bounds (<2000 chars)', () => {
   const largeOutput = {
     session_id: 'test-session-123',
@@ -69,4 +79,20 @@ test('formatDigest enforces compact digest bounds (<2000 chars)', () => {
   assert.ok(digest.includes('test-session-123'));
   assert.ok(digest.includes('$0.0450'));
   assert.ok(digest.length < 2000, `Digest length ${digest.length} exceeds 2000 characters`);
+});
+
+test('formatDigest handles turn limit errors without dumping raw json', () => {
+  const turnLimitOutput = {
+    session_id: 'turn-session-456',
+    total_cost_usd: 0.12,
+    is_error: true,
+    subtype: 'error_max_turns',
+    errors: ['Reached maximum number of turns (3)']
+  };
+
+  const digest = formatDigest(JSON.stringify(turnLimitOutput), '.agents/tmp/claude-runs/turn.json', 'turn-session-456');
+  assert.ok(digest.includes('Status: STOPPED'));
+  assert.ok(digest.includes('Reached maximum number of turns'));
+  assert.ok(digest.includes('--max-turns'));
+  assert.ok(!digest.includes('"subtype":"error_max_turns"'));
 });

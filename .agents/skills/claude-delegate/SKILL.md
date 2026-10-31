@@ -40,13 +40,19 @@ node ./scripts/claude-runner.mjs --task scan --prompt "Map all API endpoint rout
 node ./scripts/claude-runner.mjs --task review --prompt "Audit git diff for edge cases and regressions"
 ```
 
-### 2. Live Visibility vs Headless Mode
-- **`--visible`**: Immediately focuses the Claude Code tab in VS Code and streams token generation live to the terminal. Best when you want to watch execution in real-time.
-- **`--headless`** (default): Runs quietly in the background; prints only the final compact digest (<2,000 chars) for Antigravity context preservation.
+### 2. Automatic Live Visibility Cascade
+Execution visibility automatically detects and adapts to your environment:
+1. **VS Code Panel (Default when VS Code is open)**: If an active Claude Code extension instance is running, it automatically opens the Claude Code panel and streams live tokens.
+2. **Terminal Stream**: If running from an interactive terminal without the panel, it streams live tokens directly to stdout.
+3. **Headless Fallback**: In non-interactive subagent or CI environments, it runs silently and returns only the compact digest (<2,000 chars) to preserve context.
+4. **Explicit Overrides**: Pass `--headless` to force silent execution, or `--visible` to force panel activation.
 
 ```bash
-# Watch execution live in VS Code and terminal
-node ./scripts/claude-runner.mjs --task scan --prompt "Inspect routes" --visible
+# Auto-detects panel/terminal automatically
+node ./scripts/claude-runner.mjs --task scan --prompt "Inspect routes"
+
+# Force silent headless background execution
+node ./scripts/claude-runner.mjs --task scan --prompt "Inspect routes" --headless
 ```
 
 ### 3. File-Based Prompts (for complex briefs)
