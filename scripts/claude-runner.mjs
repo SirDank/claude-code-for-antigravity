@@ -12,6 +12,33 @@ import { homedir, platform } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 /**
+ * Task presets for offloading mundane, low-intelligence, or high-volume tasks
+ * to save Antigravity quota and tokens using budget/free OpenRouter models.
+ */
+export const TASK_PRESETS = {
+  boilerplate: {
+    tools: 'Read,Write,Edit,Grep,Glob',
+    mode: 'worktree',
+    systemPrompt: 'You are an autonomous boilerplate and scaffolding generator. Generate clean, minimal, compile-ready code without commentary or conversational filler to conserve tokens.'
+  },
+  docs: {
+    tools: 'Read,Write,Edit,Grep,Glob',
+    mode: 'worktree',
+    systemPrompt: 'You are an autonomous documentation assistant. Generate exact docstrings, markdown documents, or API annotations strictly conforming to project conventions.'
+  },
+  scan: {
+    tools: 'Read,Grep,Glob',
+    mode: 'read',
+    systemPrompt: 'You are an autonomous codebase scanner. Search logs, find dead code, duplicate patterns, or references, and return a compact, structured list of file locations and findings.'
+  },
+  review: {
+    tools: 'Read,Grep,Glob',
+    mode: 'read',
+    systemPrompt: 'You are an adversarial code reviewer. Inspect the changes for bugs, boundary errors, security flaws, and regressions. Output a terse bulleted list.'
+  }
+};
+
+/**
  * Resolves the Claude CLI binary across PATH and VS Code extension caches.
  */
 export function resolveClaudeBinary() {
@@ -60,8 +87,8 @@ export function resolveClaudeBinary() {
 }
 
 /**
- * Locates and loads environment configurations from .claude/settings.local.json
- * or .claude/settings.json in current directory or parent directories.
+ * Locates and loads environment configurations from .claude/settings.local.json,
+ * .claude/settings.json, or VS Code global settings (claudeCode.environmentVariables).
  */
 export function loadClaudeSettings(startDir = process.cwd()) {
   let cur = resolve(startDir);
@@ -90,6 +117,39 @@ export function loadClaudeSettings(startDir = process.cwd()) {
   if (existsSync(homeSettings)) {
     try {
       const data = JSON.parse(readFileSync(homeSettings, 'utf-8'));
+      if (data && data.env) {
+        return { path: homeSettings, data };
+      }
+    } catch {}
+  }
+
+  // Check VS Code global user settings fallback (claudeCode.environmentVariables)
+  const vscSettings = platform() === 'win32'
+    ? join(process.env.APPDATA || '', 'Code', 'User', 'settings.json')
+    : platform() === 'darwin'
+      ? join(homedir(), 'Library', 'Application Support', 'Code', 'User', 'settings.json')
+      : join(homedir(), '.config', 'Code', 'User', 'settings.json');
+
+  if (existsSync(vscSettings)) {
+    try {
+      const raw = readFileSync(vscSettings, 'utf-8');
+      const envMatch = raw.match(/"claudeCode\.environmentVariables"\s*:\s*(\[[^\]]+\])/s);
+      if (envMatch) {
+        const list = JSON.parse(envMatch[1]);
+        const env = {};
+        for (const item of list) {
+          if (item.name && item.value !== undefined) {
+            env[item.name] = item.value;
+          }
+        }
+        return { path: vscSettings, data: { env, model: env.ANTHROPIC_MODEL } };
+      }
+    } catch {}
+  }
+
+  if (existsSync(homeSettings)) {
+    try {
+      const data = JSON.parse(readFileSync(homeSettings, 'utf-8'));
       return { path: homeSettings, data };
     } catch {}
   }
@@ -103,6 +163,7 @@ export function loadClaudeSettings(startDir = process.cwd()) {
 export function parseArgs(args) {
   const options = {
     mode: 'read', // 'read' or 'worktree'
+    task: null,   // preset: 'boilerplate', 'docs', 'scan', 'review'
     prompt: '',
     promptFile: null,
     tools: null,
@@ -117,6 +178,8 @@ export function parseArgs(args) {
     safeMode: false,
     connectIde: false,
     openVscode: false,
+    visible: false,
+    headless: false,
     systemPrompt: null,
     verbose: false,
     extraArgs: []
@@ -126,6 +189,8 @@ export function parseArgs(args) {
     const arg = args[i];
     if (arg === '--mode' && args[i + 1]) {
       options.mode = args[++i];
+    } else if (arg === '--task' && args[i + 1]) {
+      options.task = args[++i];
     } else if (arg === '--prompt' && args[i + 1]) {
       options.prompt = args[++i];
     } else if (arg === '--prompt-file' && args[i + 1]) {
@@ -154,6 +219,10 @@ export function parseArgs(args) {
       options.connectIde = true;
     } else if (arg === '--open-vscode') {
       options.openVscode = true;
+    } else if (arg === '--visible') {
+      options.visible = true;
+    } else if (arg === '--headless') {
+      options.headless = true;
     } else if (arg === '--append-system-prompt' && args[i + 1]) {
       options.systemPrompt = args[++i];
     } else if (arg === '--verbose') {
@@ -162,6 +231,22 @@ export function parseArgs(args) {
       options.help = true;
     } else {
       options.extraArgs.push(arg);
+    }
+  }
+
+  // Apply task preset defaults if requested
+  if (options.task && TASK_PRESETS[options.task]) {
+    const preset = TASK_PRESETS[options.task];
+    if (preset.mode && !args.includes('--mode')) {
+      options.mode = preset.mode;
+    }
+    if (preset.tools && !options.tools && !options.allowedTools) {
+      options.tools = preset.tools;
+    }
+    if (preset.systemPrompt) {
+      options.systemPrompt = options.systemPrompt
+        ? `${preset.systemPrompt}\n${options.systemPrompt}`
+        : preset.systemPrompt;
     }
   }
 
@@ -261,7 +346,7 @@ export function formatDigest(rawJson, artifactPath, sessionId) {
 }
 
 /**
- * Opens VS Code URI handoff handler.
+ * Opens VS Code URI handoff handler to show session in the Claude Code tab.
  */
 export function openVscodeUri(sessionId, promptText = '') {
   const encPrompt = encodeURIComponent(promptText || '');
@@ -285,7 +370,18 @@ function printHelp() {
   console.log(`
 Usage: node scripts/claude-runner.mjs [options]
 
-Options:
+Quota-Saving Presets:
+  --task <preset>               Preset for mundane offloading:
+                                  boilerplate - Scaffolding & models
+                                  docs        - JSDoc, Dartdoc, markdown
+                                  scan        - Large log searches, dead code
+                                  review      - Fast first-pass diff audit
+
+Visibility Options:
+  --visible                     Open active Claude Code tab & stream live stdout
+  --headless                    Run silently in background with digest return
+
+Execution Options:
   --mode <read|worktree>        Task mode: 'read' (read-only) or 'worktree' (code modification)
   --prompt <string>             Instruction prompt for Claude Code
   --prompt-file <path>          File containing instruction prompt
@@ -323,7 +419,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   const settingsInfo = loadClaudeSettings();
   const env = { ...process.env };
 
-  // Inherit environment variables from .claude/settings.local.json if present
+  // Inherit environment variables from .claude/settings.local.json or VS Code settings
   if (settingsInfo && settingsInfo.data && settingsInfo.data.env) {
     for (const [k, v] of Object.entries(settingsInfo.data.env)) {
       if (v) env[k] = v;
@@ -335,7 +431,14 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     env.CLAUDE_CODE_AUTO_CONNECT_IDE = 'false';
   }
 
-  const claudeArgs = buildClaudeArgs(options);
+  const sessionId = options.sessionId || `run-${Date.now()}`;
+
+  // If visible mode is enabled, activate the Claude Code tab in VS Code immediately
+  if (options.visible || options.openVscode) {
+    openVscodeUri(sessionId, options.prompt);
+  }
+
+  const claudeArgs = buildClaudeArgs({ ...options, sessionId });
 
   if (options.verbose) {
     console.log(`[Runner] Executing: ${binary} ${claudeArgs.join(' ')}`);
@@ -351,14 +454,14 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   child.stdout.on('data', chunk => {
     stdoutBuffer += chunk.toString();
-    if (options.verbose) {
+    if (options.verbose || options.visible) {
       process.stdout.write(chunk);
     }
   });
 
   child.stderr.on('data', chunk => {
     stderrBuffer += chunk.toString();
-    if (options.verbose) {
+    if (options.verbose || options.visible) {
       process.stderr.write(chunk);
     }
   });
@@ -384,18 +487,21 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       mkdirSync(runDir, { recursive: true });
     }
 
-    const sessionId = options.sessionId || `run-${Date.now()}`;
     const artifactPath = join(runDir, `${sessionId}.json`);
 
     try {
       writeFileSync(artifactPath, stdoutBuffer || JSON.stringify({ stdout: stdoutBuffer, stderr: stderrBuffer }, null, 2));
     } catch {}
 
+    // Clean up temporary worktree references if worktree mode was active
+    if (options.mode === 'worktree' || options.worktree) {
+      try {
+        execSync('git worktree prune', { stdio: 'ignore' });
+      } catch {}
+    }
+
     if (code === 0) {
       console.log(formatDigest(stdoutBuffer, artifactPath, sessionId));
-      if (options.openVscode) {
-        openVscodeUri(sessionId, options.prompt);
-      }
       process.exit(0);
     } else {
       console.error(`=== CLAUDE RUN FAILED (exit code: ${code}) ===`);
@@ -405,4 +511,3 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     }
   });
 }
-

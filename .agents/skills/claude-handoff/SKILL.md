@@ -42,6 +42,7 @@ node ./scripts/claude-runner.mjs \
   --permission-mode acceptEdits \
   --max-turns 20
 ```
+*Note: The runner automatically cleans up dead worktree references via `git worktree prune` upon process completion.*
 
 ### 2. Independent Audit Gate (Run in Antigravity)
 Before accepting the changes from the worktree:

@@ -22,11 +22,12 @@ Bridges Antigravity sessions into the Claude Code VS Code graphical chat panel.
 Uses the official Claude Code VS Code extension URI handler:
 `vscode://anthropic.claude-code/open?session=<sessionId>&prompt=<encodedPrompt>`
 
-### 1. Launch Direct Session in VS Code Panel
+### 1. Launch Direct Session with Live Visibility
+Pass `--visible` (or `--open-vscode`) to immediately focus the Claude Code tab in VS Code and stream tokens live in your terminal:
 ```bash
 node ./scripts/claude-runner.mjs \
   --prompt "Refactor database query logic in repository" \
-  --open-vscode
+  --visible
 ```
 
 ### 2. Manual URI Handoff

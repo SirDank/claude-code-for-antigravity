@@ -1,7 +1,8 @@
 node_modules/
 .agents/tmp/
+.claude/
 .claude-runs/
+worktrees/
 .DS_Store
 Thumbs.db
 *.log
-

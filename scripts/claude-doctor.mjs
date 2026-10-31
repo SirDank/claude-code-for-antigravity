@@ -2,16 +2,44 @@
 
 /**
  * Preflight doctor script for checking Claude Code CLI, Antigravity integration,
- * local settings, and environment readiness.
+ * local settings, .gitignore safeguards, and environment readiness.
  */
 
 import { execSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, platform } from 'node:os';
 import { join } from 'node:path';
 import { resolveClaudeBinary, loadClaudeSettings } from './claude-runner.mjs';
 
-function runCheck() {
+/**
+ * Ensures required ignores are present in repository .gitignore
+ */
+export function ensureGitignoreSafeguards(repoRoot = process.cwd()) {
+  const gitignorePath = join(repoRoot, '.gitignore');
+  const requiredPatterns = ['.claude/', '.agents/tmp/', '.claude-runs/', 'worktrees/'];
+  let added = [];
+
+  if (existsSync(gitignorePath)) {
+    let content = readFileSync(gitignorePath, 'utf-8');
+    const lines = content.split(/\r?\n/).map(l => l.trim());
+    for (const pat of requiredPatterns) {
+      if (!lines.includes(pat)) {
+        content += (content.endsWith('\n') ? '' : '\n') + pat + '\n';
+        added.push(pat);
+      }
+    }
+    if (added.length > 0) {
+      writeFileSync(gitignorePath, content, 'utf-8');
+    }
+  } else {
+    writeFileSync(gitignorePath, requiredPatterns.join('\n') + '\n', 'utf-8');
+    added = [...requiredPatterns];
+  }
+
+  return added;
+}
+
+export function runCheck() {
   const results = [];
   const home = homedir();
 
@@ -59,7 +87,7 @@ function runCheck() {
     results.push({
       name: 'Claude Settings & Provider',
       status: 'INFO',
-      detail: 'No .claude/settings.local.json found. Claude will use default Anthropic credentials.'
+      detail: 'No local settings found. Claude will use default Anthropic credentials.'
     });
   }
 
@@ -78,9 +106,9 @@ function runCheck() {
       const hasLocalToken = settingsInfo && settingsInfo.data && settingsInfo.data.env && (settingsInfo.data.env.ANTHROPIC_AUTH_TOKEN || settingsInfo.data.env.ANTHROPIC_API_KEY);
       if (hasCreds || hasLocalToken) {
         authOk = true;
-        authDetail = hasLocalToken ? 'Configured via .claude/settings.local.json token' : 'Found ~/.claude/.credentials.json';
+        authDetail = hasLocalToken ? 'Configured via environment/settings token' : 'Found ~/.claude/.credentials.json';
       } else {
-        authDetail = 'Not authenticated. Run claude login or configure .claude/settings.local.json with OpenRouter token.';
+        authDetail = 'Not authenticated. Run claude login or configure settings with OpenRouter token.';
       }
     }
     results.push({ name: 'Authentication Status', status: authOk ? 'PASS' : 'WARN', detail: authDetail });
@@ -124,6 +152,18 @@ function runCheck() {
     results.push({ name: 'Claude VS Code Extension', status: 'INFO', detail: 'No active VS Code IDE lockfile detected (normal if VS Code Claude panel is closed)' });
   }
 
+  // 7. Repository .gitignore Safeguards
+  try {
+    const added = ensureGitignoreSafeguards();
+    if (added.length > 0) {
+      results.push({ name: '.gitignore Safeguards', status: 'PASS', detail: `Auto-safeguarded (added ${added.join(', ')})` });
+    } else {
+      results.push({ name: '.gitignore Safeguards', status: 'PASS', detail: 'Protected (.claude/, .agents/tmp/, .claude-runs/, worktrees/ ignored)' });
+    }
+  } catch (err) {
+    results.push({ name: '.gitignore Safeguards', status: 'WARN', detail: `Failed to verify .gitignore: ${err.message}` });
+  }
+
   // Print results table
   for (const r of results) {
     const badge = r.status === 'PASS' ? '[PASS]' : (r.status === 'WARN' ? '[WARN]' : (r.status === 'FAIL' ? '[FAIL]' : '[INFO]'));
@@ -144,4 +184,3 @@ function runCheck() {
 if (process.argv[1] && process.argv[1].endsWith('claude-doctor.mjs')) {
   runCheck();
 }
-

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, buildClaudeArgs, formatDigest } from '../scripts/claude-runner.mjs';
+import { parseArgs, buildClaudeArgs, formatDigest, TASK_PRESETS } from '../scripts/claude-runner.mjs';
 
 test('parseArgs correctly parses CLI options', () => {
   const argv = [
@@ -9,7 +9,8 @@ test('parseArgs correctly parses CLI options', () => {
     '--max-turns', '10',
     '--max-budget-usd', '2.50',
     '--permission-mode', 'acceptEdits',
-    '--open-vscode'
+    '--open-vscode',
+    '--visible'
   ];
 
   const opts = parseArgs(argv);
@@ -19,6 +20,19 @@ test('parseArgs correctly parses CLI options', () => {
   assert.equal(opts.maxBudgetUsd, 2.50);
   assert.equal(opts.permissionMode, 'acceptEdits');
   assert.equal(opts.openVscode, true);
+  assert.equal(opts.visible, true);
+});
+
+test('parseArgs applies task preset configurations', () => {
+  const opts = parseArgs(['--task', 'boilerplate', '--prompt', 'Scaffold widget']);
+  assert.equal(opts.task, 'boilerplate');
+  assert.equal(opts.mode, 'worktree');
+  assert.equal(opts.tools, 'Read,Write,Edit,Grep,Glob');
+  assert.ok(opts.systemPrompt.includes('boilerplate'));
+
+  const scanOpts = parseArgs(['--task', 'scan', '--prompt', 'Find unused imports']);
+  assert.equal(scanOpts.mode, 'read');
+  assert.equal(scanOpts.tools, 'Read,Grep,Glob');
 });
 
 test('buildClaudeArgs sets default flags for read mode', () => {
@@ -56,4 +70,3 @@ test('formatDigest enforces compact digest bounds (<2000 chars)', () => {
   assert.ok(digest.includes('$0.0450'));
   assert.ok(digest.length < 2000, `Digest length ${digest.length} exceeds 2000 characters`);
 });
-

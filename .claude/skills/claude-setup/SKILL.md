@@ -30,6 +30,17 @@ Runs preflight verification for Claude Code integration within Google Antigravit
    - **`[WARN]`**: Functional with caveats (e.g. relying on fallback authentication).
    - **`[FAIL]`**: Blocking issue. Follow printed instructions.
 
+## Doctor Checks Performed
+
+The doctor verifies 7 preflight conditions:
+1. **Node.js Runtime**: Node >= 18.0.0.
+2. **Claude CLI Binary**: Path resolution via VS Code extension or PATH.
+3. **Claude Settings & Provider**: OpenRouter or custom provider configuration.
+4. **Authentication Status**: Credential file or environment token validity.
+5. **Antigravity CLI**: Detection of `agy` executable or VS Code integration.
+6. **Claude VS Code Extension**: Active session lockfile detection.
+7. **.gitignore Safeguards**: Auto-appends `.claude/`, `.agents/tmp/`, `.claude-runs/`, and `worktrees/` if missing.
+
 ## Resolution Paths
 
 ### Claude CLI Missing
@@ -38,9 +49,10 @@ If `Claude CLI Binary` fails:
 - **Standalone CLI**: Run `npm install -g @anthropic-ai/claude-code`.
 - **Manual Path**: Set `CLAUDE_PATH` in your shell environment pointing directly to the `claude` executable.
 
-### Provider & Model Configuration
-To use free or budget models (e.g. OpenRouter Nemotron) without Antigravity token burn:
-1. Place a `.claude/settings.local.json` file in your workspace:
+### Provider & Model Configuration (Save Antigravity Quota)
+Configure top free OpenRouter models (such as `nvidia/nemotron-3-ultra-550b-a55b:free`) via either:
+
+1. **Local Project Settings** (`.claude/settings.local.json`):
    ```json
    {
      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
@@ -51,5 +63,15 @@ To use free or budget models (e.g. OpenRouter Nemotron) without Antigravity toke
      }
    }
    ```
-2. Re-run `node ./scripts/claude-doctor.mjs` to confirm the provider is detected.
+2. **VS Code Settings** (`settings.json`):
+   ```json
+   {
+     "claudeCode.environmentVariables": {
+       "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
+       "ANTHROPIC_AUTH_TOKEN": "<your-openrouter-key>",
+       "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free"
+     }
+   }
+   ```
+3. Run `node ./scripts/claude-doctor.mjs` to confirm provider detection and gitignore safeguards.
 
