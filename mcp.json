@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "claude-code-tools": {
+      "command": "claude",
+      "args": ["mcp", "serve"],
+      "disabled": true,
+      "timeoutSeconds": 600,
+      "description": "Optional: Exposes Claude Code built-in shell and file manipulation tools over stdio MCP (does not include reasoning loop)."
+    }
+  }
+}
+

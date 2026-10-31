@@ -1,0 +1,7 @@
+node_modules/
+.agents/tmp/
+.claude-runs/
+.DS_Store
+Thumbs.db
+*.log
+

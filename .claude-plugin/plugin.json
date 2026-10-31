@@ -1,0 +1,8 @@
+{
+  "name": "bridge-antigravity",
+  "description": "Bridge and skill suite allowing Claude Code to coordinate with Google Antigravity workspaces.",
+  "version": "1.0.0",
+  "author": "SirDank",
+  "repository": "https://github.com/SirDank/claude-code-for-antigravity"
+}
+

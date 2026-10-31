@@ -1,0 +1,29 @@
+{
+  "claude-bridge-session": {
+    "enabled": true,
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./scripts/session-start-hook.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./scripts/guard-command-hook.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,26 @@
+{
+  "name": "claude-code-for-antigravity",
+  "version": "1.0.0",
+  "description": "Bridge and skill suite enabling Google Antigravity to delegate tasks, run cross-model reviews, and hand off to Claude Code",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "doctor": "node scripts/claude-doctor.mjs",
+    "build": "node scripts/build-targets.mjs",
+    "check": "node scripts/build-targets.mjs --check",
+    "clean": "node scripts/uninstall.mjs"
+  },
+  "keywords": [
+    "antigravity",
+    "claude-code",
+    "agent-skills",
+    "gemini",
+    "claude",
+    "openrouter"
+  ],
+  "author": "SirDank",
+  "license": "Apache-2.0 OR MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
