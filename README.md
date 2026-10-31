@@ -11,7 +11,7 @@ A cross-platform bridge and skill suite enabling **Google Antigravity** (VS Code
 ## Key Features
 
 - **Unified `/claude` Powerhouse**: Consolidates task delegation, code review, architectural planning, and worktree isolation into a single intuitive slash command with native modes: `auto`, `plan`, `edit`, and `manual`.
-- **Maximum Reasoning Effort**: Always defaults to `--effort max` (and Ultracode where supported) so free OpenRouter models (like `nvidia/nemotron-3-ultra-550b-a55b:free`) and premium models reason at full cognitive depth.
+- **Maximum Reasoning Effort**: Always defaults to `--effort max` (and Ultracode where supported) so free NVIDIA Build models (like `nvidia/nemotron-3-ultra-550b-a55b`) and premium models reason at full cognitive depth.
 - **Unlimited Turns by Default**: Removes artificial turn caps so complex multi-file scans and large investigations run to natural completion without getting killed.
 - **IDE Integration & Live Visibility**: Auto-detects active Claude Code instances in VS Code (`~/.claude/ide/*.lock`), connects via the IDE MCP server for editor context and diffs, and supports one-click prompt handoff to the Claude Code panel (`openVscodeUri`). For live visual TUI streaming, runs in VS Code integrated terminal sessions.
 - **Dedicated Doctor (`/claude-setup`)**: Standalone preflight diagnostic tool verifying 7 runtime requirements, authentication, provider settings, and automatic `.gitignore` safeguards.
@@ -43,8 +43,8 @@ A cross-platform bridge and skill suite enabling **Google Antigravity** (VS Code
            ┌──────────┴──────────┐
            ▼                     ▼
 ┌──────────────────┐  ┌────────────────────────────────┐
-│ Native Anthropic │  │ OpenRouter / Custom Endpoints  │
-│  (Claude Sonnet) │  │  (e.g. Nemotron 3 Ultra Free)  │
+│ Native Anthropic │  │     NVIDIA Build NIM API       │
+│  (Claude Sonnet) │  │ (e.g. Nemotron 3 Ultra 550B)   │
 └──────────────────┘  └────────────────────────────────┘
 ```
 
@@ -104,32 +104,51 @@ Or inside Antigravity:
 
 ---
 
-## Free OpenRouter / Budget Model Setup
+## Free NVIDIA Build Model Setup (Unlimited API Requests)
 
-To use Claude Code with free or budget models (such as Nemotron 3 Ultra via OpenRouter) and save Antigravity quota on mundane tasks:
+To save Antigravity quota and offload tasks to frontier-scale models for free without harsh daily limits, use **NVIDIA Build** (`build.nvidia.com`):
 
-1. Create a `.claude/settings.local.json` file in your repository:
+### Why NVIDIA Build over OpenRouter?
+- **Unlimited Daily Requests**: Validating your account with a phone number (one-time OTP) unlocks **unlimited API requests without daily limits** (40 requests per minute rate limit, no 50-request daily cutoff like OpenRouter free tier).
+- **1,000,000 (1M) Token Context Window**: Perfect for large codebase scans, multi-file investigations, and log audits.
+- **Hosted on NVIDIA NIM Infrastructure**: Direct access to high-throughput Hopper/Blackwell GPU clusters.
+
+### Model Intelligence Comparison (Artificial Analysis Benchmark)
+According to the independent [Artificial Analysis Coding Agent Index](https://artificialanalysis.ai):
+1. **`nvidia/nemotron-3-ultra-550b-a55b`** (**Score: ~49.3** - **Recommended #1**): 550B total / 55B active hybrid Mamba-MoE model. Highest coding benchmark score among open-weight models, purpose-built for agentic multi-turn reasoning.
+2. **`mistralai/mistral-large-4-1t-a52b`** (**Score: ~48.3 - 48.8** - **Top Alternative**): Mistral's flagship 1-Trillion parameter MoE ("Le Chonk"). Exceptional token efficiency (uses ~47% fewer tokens than heavy CoT models) with top-tier software engineering intelligence.
+3. **`z-ai/glm-5-3-flash`** & **`deepseek-ai/deepseek-v4.1-flash`**: Flash-tier efficiency models designed for speed, scoring lower on complex coding agent tasks (~32 - 45).
+
+### How to Configure
+
+1. Get your free API key at [build.nvidia.com](https://build.nvidia.com) (verify your phone number for unlimited access).
+2. Configure via **Local Project Settings** (`.claude/settings.local.json`):
    ```json
    {
-     "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
+     "model": "nvidia/nemotron-3-ultra-550b-a55b",
      "env": {
-       "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
-       "ANTHROPIC_AUTH_TOKEN": "<your-openrouter-key>",
-       "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free"
+       "ANTHROPIC_BASE_URL": "https://integrate.api.nvidia.com/v1",
+       "ANTHROPIC_AUTH_TOKEN": "<your-nvidia-api-key>",
+       "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b"
      }
    }
    ```
-   *Alternatively*, set it globally in your VS Code `settings.json`:
+   *Or* configure globally in your VS Code `settings.json`:
    ```json
    {
-     "claudeCode.environmentVariables": {
-       "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
-       "ANTHROPIC_AUTH_TOKEN": "<your-openrouter-key>",
-       "ANTHROPIC_MODEL": "nvidia/nemotron-3-ultra-550b-a55b:free"
-     }
+     "claudeCode.environmentVariables": [
+       { "name": "ANTHROPIC_BASE_URL", "value": "https://integrate.api.nvidia.com/v1" },
+       { "name": "ANTHROPIC_AUTH_TOKEN", "value": "<your-nvidia-api-key>" },
+       { "name": "ANTHROPIC_API_KEY", "value": "" },
+       { "name": "ANTHROPIC_MODEL", "value": "nvidia/nemotron-3-ultra-550b-a55b" },
+       { "name": "ANTHROPIC_DEFAULT_SONNET_MODEL", "value": "nvidia/nemotron-3-ultra-550b-a55b" },
+       { "name": "ANTHROPIC_DEFAULT_HAIKU_MODEL", "value": "nvidia/nemotron-3-ultra-550b-a55b" },
+       { "name": "ANTHROPIC_DEFAULT_OPUS_MODEL", "value": "nvidia/nemotron-3-ultra-550b-a55b" },
+       { "name": "CLAUDE_CODE_SUBAGENT_MODEL", "value": "nvidia/nemotron-3-ultra-550b-a55b" }
+     ]
    }
    ```
-2. The runner automatically detects either configuration and routes requests through OpenRouter!
+3. The runner automatically detects either configuration and routes requests through NVIDIA Build!
 
 ---
 

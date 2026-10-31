@@ -3,9 +3,8 @@
 Integrate Anthropic's Claude Code CLI and VS Code extension into Google Antigravity.
 
 ## Capabilities
-- **Preflight Doctor (`/claude-setup`)**: Diagnoses local environment, resolves Claude executable from PATH or VS Code extension, checks auth and OpenRouter settings.
-- **Cross-Model Review (`/claude-review`)**: Runs adversarial code and architecture reviews against `git diff` using Claude Code, acting as an auditor gate.
-- **Task Delegation (`/claude-delegate`)**: Offloads mundane or complex tasks to Claude Code, saving Antigravity context tokens via compact digests.
-- **Autonomous Handoff (`/claude-handoff`)**: Executes tasks in an isolated Git worktree with verification checks before merging.
-- **Desktop Continuity (`/claude-vscode`)**: Opens active sessions directly in the Claude Code VS Code sidebar panel.
+- **Unified Claude Bridge (`/claude`)**: Offload tasks, conduct adversarial code reviews, plan architectures, and execute isolated Git worktree edits using Claude Code (`claude -p`).
+- **Preflight Doctor (`/claude-setup`)**: Diagnoses local environment, resolves Claude executable from PATH or VS Code extension, checks auth and NVIDIA Build provider settings.
+- **Quota Saver via NVIDIA Build**: Preserves Antigravity tokens by routing tasks through NVIDIA Build NIM APIs (`nvidia/nemotron-3-ultra-550b-a55b`).
+- **Compact Digest Returns**: Enforces strict Honey Lever 3 output bounds (<2,000 characters) to prevent token pollution.
 

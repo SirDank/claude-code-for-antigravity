@@ -1,6 +1,7 @@
 node_modules/
 .agents/tmp/
-.claude/
+.claude/*
+!.claude/skills/
 .claude-runs/
 worktrees/
 .DS_Store

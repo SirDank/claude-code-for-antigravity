@@ -16,7 +16,9 @@
     "agent-skills",
     "gemini",
     "claude",
-    "openrouter"
+    "nvidia",
+    "nemotron",
+    "nim"
   ],
   "author": "SirDank",
   "license": "Apache-2.0 OR MIT",

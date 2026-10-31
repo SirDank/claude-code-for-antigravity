@@ -12,6 +12,6 @@ This document reports empirical measurements collected on the reference test sys
 - **Token Savings for Antigravity Context**: >90% reduction in context window consumption compared to streaming full child process transcripts.
 
 ## Caveats & Constraints
-1. **Network Sandbox**: Running inside an Antigravity sandbox without network allowlisting (`read_url(api.anthropic.com)` or OpenRouter proxy domain) will block child process API calls.
+1. **Network Sandbox**: Running inside an Antigravity sandbox without network allowlisting (`read_url(api.anthropic.com)` or `integrate.api.nvidia.com`) will block child process API calls.
 2. **Windows CLI Resolution**: Claude Code bundled in the VS Code extension does not automatically configure system PATH. The multi-stage detector resolves this in ~15ms.
 

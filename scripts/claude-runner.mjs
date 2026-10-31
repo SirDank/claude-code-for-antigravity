@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 /**
  * Task presets for offloading mundane, low-intelligence, or high-volume tasks
- * to save Antigravity quota and tokens using budget/free OpenRouter models.
+ * to save Antigravity quota and tokens using free/unlimited NVIDIA Build models (e.g. Nemotron 3 Ultra).
  */
 export const TASK_PRESETS = {
   boilerplate: {

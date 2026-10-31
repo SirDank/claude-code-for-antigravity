@@ -23,7 +23,7 @@ export function ensureGitignoreSafeguards(repoRoot = process.cwd()) {
     let content = readFileSync(gitignorePath, 'utf-8');
     const lines = content.split(/\r?\n/).map(l => l.trim());
     for (const pat of requiredPatterns) {
-      if (!lines.includes(pat)) {
+      if (!lines.includes(pat) && !(pat === '.claude/' && lines.includes('.claude/*'))) {
         content += (content.endsWith('\n') ? '' : '\n') + pat + '\n';
         added.push(pat);
       }
@@ -108,7 +108,7 @@ export function runCheck() {
         authOk = true;
         authDetail = hasLocalToken ? 'Configured via environment/settings token' : 'Found ~/.claude/.credentials.json';
       } else {
-        authDetail = 'Not authenticated. Run claude login or configure settings with OpenRouter token.';
+        authDetail = 'Not authenticated. Run claude login or configure settings with NVIDIA API key (https://build.nvidia.com).';
       }
     }
     results.push({ name: 'Authentication Status', status: authOk ? 'PASS' : 'WARN', detail: authDetail });
