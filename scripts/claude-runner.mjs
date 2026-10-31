@@ -502,6 +502,37 @@ export function formatDigest(rawJson, artifactPath, sessionId) {
 }
 
 /**
+ * Ensures local NVIDIA translation proxy is running when routing requests to NVIDIA NIM.
+ */
+export async function ensureNvidiaProxy() {
+  try {
+    const res = await fetch('http://127.0.0.1:4000/api/hello', { signal: AbortSignal.timeout(500) });
+    if (res.ok) return true;
+  } catch {}
+
+  const proxyScript = resolve(dirname(fileURLToPath(import.meta.url)), 'nvidia-proxy.mjs');
+  if (!existsSync(proxyScript)) return false;
+
+  try {
+    const child = spawn(process.execPath, [proxyScript], {
+      detached: true,
+      stdio: 'ignore'
+    });
+    child.unref();
+
+    for (let i = 0; i < 25; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      try {
+        const res = await fetch('http://127.0.0.1:4000/api/hello', { signal: AbortSignal.timeout(500) });
+        if (res.ok) return true;
+      } catch {}
+    }
+  } catch {}
+
+  return false;
+}
+
+/**
  * Opens VS Code URI handoff handler to show prompt in the Claude Code tab.
  * Note: Session ID is only passed if resuming a known saved session.
  * For fresh prompts, passing an unknown session ID causes VS Code to drop initialPrompt.
@@ -584,6 +615,15 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     for (const [k, v] of Object.entries(settingsInfo.data.env)) {
       if (v) env[k] = v;
     }
+  }
+
+  // Auto-bridge NVIDIA NIM requests through local translation proxy
+  if (env.ANTHROPIC_BASE_URL && (env.ANTHROPIC_BASE_URL.includes('integrate.api.nvidia.com') || env.ANTHROPIC_BASE_URL.includes(':4000'))) {
+    if (env.ANTHROPIC_BASE_URL.includes('integrate.api.nvidia.com')) {
+      env.NVIDIA_BASE_URL = env.ANTHROPIC_BASE_URL;
+      env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:4000';
+    }
+    await ensureNvidiaProxy();
   }
 
   const sessionId = options.sessionId || randomUUID();
