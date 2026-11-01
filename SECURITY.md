@@ -1,7 +1,7 @@
 # Security Policy
 
 ## Credential Protection & Isolation
-- **No Token Intermediation**: `claude-code-for-antigravity` does not collect, log, scrape, or transmit Claude credentials, session tokens, or API keys.
+- **No Token Intermediation**: `free-claude-code-for-antigravity` does not collect, log, scrape, or transmit Claude credentials, session tokens, or API keys.
 - **Credential Storage**: User credentials remain managed exclusively by the official Claude Code binary in `~/.claude/.credentials.json` or by local workspace environment files (`.claude/settings.local.json`).
 - **Deny Rule**: Antigravity agents are denied direct read access to `~/.claude/.credentials.json` by permission policy (`Deny > Ask > Allow`).
 

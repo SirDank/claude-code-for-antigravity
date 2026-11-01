@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-for-antigravity",
+  "name": "free-claude-code-for-antigravity",
   "version": "1.0.0",
   "description": "Bridge and skill suite enabling Google Antigravity to delegate tasks, run cross-model reviews, and hand off to Claude Code",
   "type": "module",

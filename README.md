@@ -1,6 +1,6 @@
-# claude-code-for-antigravity
+# free-claude-code-for-antigravity
 
-[![CI](https://github.com/SirDank/claude-code-for-antigravity/actions/workflows/ci.yml/badge.svg)](https://github.com/SirDank/claude-code-for-antigravity)
+[![CI](https://github.com/SirDank/free-claude-code-for-antigravity/actions/workflows/ci.yml/badge.svg)](https://github.com/SirDank/free-claude-code-for-antigravity)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Antigravity](https://img.shields.io/badge/Antigravity-Plugin%20%26%20Skills-brightgreen)](https://antigravity.google)
 
@@ -221,18 +221,18 @@ During interactive and live window sessions, Claude Code provides native command
 ### Method A: Antigravity CLI Plugin
 Install directly from GitHub into your global Antigravity environment:
 ```bash
-agy plugin install https://github.com/SirDank/claude-code-for-antigravity
+agy plugin install https://github.com/SirDank/free-claude-code-for-antigravity
 ```
 
 ### Method B: Workspace Skill Bundle (VS Code Extension)
 Clone or copy the skills into your workspace:
 ```bash
-git clone https://github.com/SirDank/claude-code-for-antigravity.git .agents/plugins/bridge-claude-code
+git clone https://github.com/SirDank/free-claude-code-for-antigravity.git .agents/plugins/bridge-claude-code
 node .agents/plugins/bridge-claude-code/scripts/build-targets.mjs
 ```
 Or add via `npx skills`:
 ```bash
-npx skills add SirDank/claude-code-for-antigravity -a antigravity
+npx skills add SirDank/free-claude-code-for-antigravity -a antigravity
 ```
 
 ---

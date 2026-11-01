@@ -1,4 +1,4 @@
-# Claude Code Bridge for Antigravity
+# Free Claude Code Bridge for Antigravity
 
 Operating instructions for Antigravity and Claude agents collaborating in this workspace.
 

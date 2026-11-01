@@ -1,6 +1,6 @@
 # Installation Guide
 
-`claude-code-for-antigravity` supports both the Antigravity VS Code extension and the standalone `agy` CLI across Windows, macOS, and Linux.
+`free-claude-code-for-antigravity` supports both the Antigravity VS Code extension and the standalone `agy` CLI across Windows, macOS, and Linux.
 
 ## Requirements
 - **Node.js**: v18.0.0 or higher.
@@ -14,9 +14,9 @@
 
 | Host Environment | Preferred Installation Method | Command / Action |
 | :--- | :--- | :--- |
-| **Antigravity CLI (`agy`)** | Antigravity Plugin Install | `agy plugin install https://github.com/SirDank/claude-code-for-antigravity` |
-| **Antigravity VS Code Extension** | Workspace Customization | Copy repository skills to `.agents/skills/` OR run `npx skills add SirDank/claude-code-for-antigravity -a antigravity` |
-| **Claude Code CLI** | Companion Plugin | `claude plugin install https://github.com/SirDank/claude-code-for-antigravity` |
+| **Antigravity CLI (`agy`)** | Antigravity Plugin Install | `agy plugin install https://github.com/SirDank/free-claude-code-for-antigravity` |
+| **Antigravity VS Code Extension** | Workspace Customization | Copy repository skills to `.agents/skills/` OR run `npx skills add SirDank/free-claude-code-for-antigravity -a antigravity` |
+| **Claude Code CLI** | Companion Plugin | `claude plugin install https://github.com/SirDank/free-claude-code-for-antigravity` |
 
 ---
 
@@ -82,8 +82,8 @@ Add the following permissions snippet to your Antigravity settings (`~/.gemini/a
 If instructing an AI agent to install this bridge in an existing workspace, paste this prompt:
 
 ```text
-Please install claude-code-for-antigravity into this repository:
-1. Clone or download https://github.com/SirDank/claude-code-for-antigravity into .agents/plugins/bridge-claude-code (or copy its skills/ into .agents/skills/).
+Please install free-claude-code-for-antigravity into this repository:
+1. Clone or download https://github.com/SirDank/free-claude-code-for-antigravity into .agents/plugins/bridge-claude-code (or copy its skills/ into .agents/skills/).
 2. Run `node .agents/plugins/bridge-claude-code/scripts/claude-doctor.mjs` to verify binary detection and authentication.
 3. Test with `/claude-setup`.
 ```

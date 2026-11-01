@@ -4,15 +4,15 @@
   "version": "1.0.0",
   "description": "Delegate tasks, run adversarial cross-model reviews, and hand off sessions from Antigravity to Claude Code in VS Code and CLI.",
   "author": "SirDank",
-  "homepage": "https://github.com/SirDank/claude-code-for-antigravity",
+  "homepage": "https://github.com/SirDank/free-claude-code-for-antigravity",
   "repository": {
     "type": "git",
-    "url": "https://github.com/SirDank/claude-code-for-antigravity.git"
+    "url": "https://github.com/SirDank/free-claude-code-for-antigravity.git"
   },
   "suggestedPrompts": [
-    "/claude-setup Check if Claude Code CLI and VS Code integration are ready",
-    "/claude-review Run an adversarial cross-model review on my current git diff",
-    "/claude-delegate Investigate the root cause of this bug using Claude Code"
+    "/claude-setup Check if Free Claude Code router and environment are ready",
+    "/claude review Run an adversarial cross-model review on my current git diff",
+    "/claude Investigate the root cause of this bug using Claude Code"
   ]
 }
 

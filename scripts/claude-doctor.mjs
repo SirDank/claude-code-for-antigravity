@@ -44,7 +44,7 @@ export function runCheck() {
   const home = homedir();
 
   console.log('\n======================================================');
-  console.log(' Claude Code for Antigravity - Preflight Doctor');
+  console.log(' Free Claude Code for Antigravity - Preflight Doctor');
   console.log('======================================================\n');
 
   // 1. Check Node.js
