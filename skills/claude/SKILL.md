@@ -13,10 +13,13 @@ metadata:
 Offload tasks, conduct cross-model adversarial reviews, plan system architectures, and execute isolated code implementations using Claude Code (`claude -p`).
 
 ## Key Principles & Execution Discipline
+- **Session Continuity**: Automatically binds to the active Antigravity conversation (`ANTIGRAVITY_CONVERSATION_ID`), continuing context across multiple turns using `--session-id` on turn 1 and `--resume` on subsequent turns.
 - **Maximum Reasoning Effort**: Always runs with `--effort max` (and Ultracode where available) to give free and paid models maximum thinking depth.
 - **Unlimited Turns**: No arbitrary turn limits by default; runs to natural completion without premature termination.
+- **Live Window & Headless Modes**: Supports `--window` / `--visible` to spawn a live visible console window displaying streaming tools and diffs (remaining open for review), or `--headless` for silent background execution with Honey digests.
 - **Auto-Allowed Tools**: Pass `--allowedTools "*"` by default in non-interactive runs, preventing third-party MCP tool permissions from stalling execution.
 - **IDE Integration & Protocol Bridge**: Auto-detects active VS Code IDE instances (`~/.claude/ide/*.lock`), connects to the IDE MCP server for editor context and diffs, and transparently routes through the local NVIDIA proxy for free, unlimited frontier reasoning.
+- **Zero Workspace Pollution**: Temporary execution artifacts are placed in the OS temp directory (`tmpdir()/claude-runs/`), ensuring no junk files appear in the repository.
 
 ## Core Modes
 Specify modes using `--mode <name>` or as the first word of your prompt:
@@ -72,9 +75,11 @@ Or inside Antigravity:
 ## Options Reference
 - `--mode <auto|plan|edit|manual>`: Execution mode and permission policy.
 - `--effort <max|xhigh|high|medium|low>`: Reasoning effort (default: `max`).
-- `--window`, `--visible`: Spawns a visible external terminal window to watch execution live in real time.
+- `--window`, `--visible`: Spawns a visible external terminal window to watch execution live in real time (remains open for user review).
 - `--verbose`: Streams live CLI logs to stdout in current terminal.
 - `--headless`: Force quiet background execution returning compact Honey Lever 3 digest.
+- `--session-id <uuid>`: Manually specify session identifier (defaults to active Antigravity conversation ID).
+- `--resume <uuid>`: Resume a specific prior conversation session.
 - `--worktree`: Quarantine changes inside a clean Git worktree.
 - `--tools <list>`: Explicit whitelist of built-in tools (e.g. `Read,Grep,Glob`).
 - `--max-turns <n>`: Override unlimited turns with an explicit limit.

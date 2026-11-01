@@ -11,11 +11,14 @@ A cross-platform bridge and skill suite enabling **Google Antigravity** (VS Code
 ## Key Features
 
 - **Unified `/claude` Powerhouse**: Consolidates task delegation, code review, architectural planning, and worktree isolation into a single intuitive slash command with native modes: `auto`, `plan`, `edit`, and `manual`.
+- **Session Continuity per Conversation**: Automatically binds to the active Antigravity conversation (`ANTIGRAVITY_CONVERSATION_ID`), preserving conversational memory, tool executions, and file state across subsequent turns (`--session-id` on turn 1, auto `--resume` thereafter).
+- **Live Window & Visibility Modes**: Supports `--window` / `--visible` to launch a visible console window showing real-time execution, reasoning, and tools; stays open on completion for user inspection. Supports `--headless` for silent background execution returning compact Honey Lever 3 digests.
 - **Maximum Reasoning Effort**: Always defaults to `--effort max` (and Ultracode where supported) so free NVIDIA Build models (like `nvidia/nemotron-3-ultra-550b-a55b`) and premium models reason at full cognitive depth.
 - **Unlimited Turns by Default**: Removes artificial turn caps so complex multi-file scans and large investigations run to natural completion without getting killed.
 - **IDE & MCP Integration**: Auto-detects active VS Code instances (`~/.claude/ide/*.lock`), connects via the IDE MCP server for editor context and diffs, and transparently routes through the local zero-dependency proxy to NVIDIA Build.
 - **Dedicated Doctor (`/claude-setup`)**: Standalone preflight diagnostic tool verifying 7 runtime requirements, authentication, provider settings, and automatic `.gitignore` safeguards.
 - **Test-Gated Worktree Implementation (`/claude edit`)**: Quarantines code modifications in an isolated Git worktree (`--worktree`) with auto-cleanup (`git worktree prune`).
+- **Zero Workspace Pollution**: Run artifacts are saved strictly in the OS temporary directory (`tmpdir()/claude-runs/`), keeping workspace git status clean.
 - **Cross-Platform & Zero Dependencies**: Built with pure Node.js (`.mjs`) for bulletproof execution on Windows, macOS, and Linux without external npm packages.
 
 ---
