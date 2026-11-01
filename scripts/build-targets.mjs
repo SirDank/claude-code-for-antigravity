@@ -7,8 +7,10 @@
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, cpSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { homedir } from 'node:os';
 
 const isCheck = process.argv.includes('--check');
+const isGlobal = process.argv.includes('--global');
 const skillsDir = resolve('skills');
 const errors = [];
 
@@ -149,5 +151,30 @@ if (isCheck) {
     }
   }
   console.log('Synchronized skills to .agents/skills/ and .claude/skills/');
+
+  if (isGlobal) {
+    const globalSkillsDir = join(homedir(), '.gemini', 'config', 'skills');
+    if (!existsSync(globalSkillsDir)) {
+      mkdirSync(globalSkillsDir, { recursive: true });
+    }
+
+    for (const folder of skillFolders) {
+      const src = join(skillsDir, folder);
+      const dest = join(globalSkillsDir, folder);
+      mkdirSync(dest, { recursive: true });
+      cpSync(src, dest, { recursive: true });
+
+      // Bundle runner, doctor, and proxy scripts into global skill directory
+      const destScripts = join(dest, 'scripts');
+      mkdirSync(destScripts, { recursive: true });
+      for (const script of ['claude-runner.mjs', 'claude-doctor.mjs', 'nvidia-proxy.mjs']) {
+        const scriptSrc = resolve('scripts', script);
+        if (existsSync(scriptSrc)) {
+          cpSync(scriptSrc, join(destScripts, script));
+        }
+      }
+    }
+    console.log(`Successfully installed skills globally to ${globalSkillsDir}`);
+  }
 }
 

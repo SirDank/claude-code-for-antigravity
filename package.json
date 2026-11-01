@@ -8,6 +8,7 @@
     "doctor": "node scripts/claude-doctor.mjs",
     "build": "node scripts/build-targets.mjs",
     "check": "node scripts/build-targets.mjs --check",
+    "install:global": "node scripts/build-targets.mjs --global",
     "clean": "node scripts/uninstall.mjs"
   },
   "keywords": [
