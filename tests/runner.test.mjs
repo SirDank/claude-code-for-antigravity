@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, ensureNvidiaProxy, TASK_PRESETS } from '../scripts/claude-runner.mjs';
+import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, ensureNvidiaProxy, resolveSessionId, doesClaudeSessionExist, TASK_PRESETS } from '../scripts/claude-runner.mjs';
 
 test('parseArgs correctly parses CLI options', () => {
   const argv = [
@@ -128,4 +128,22 @@ test('formatDigest handles turn limit errors without dumping raw json', () => {
 
 test('ensureNvidiaProxy exports valid function', () => {
   assert.equal(typeof ensureNvidiaProxy, 'function');
+});
+
+test('resolveSessionId binds to Antigravity conversation or generates UUID', () => {
+  assert.equal(resolveSessionId({ sessionId: 'custom-session-id' }), 'custom-session-id');
+  assert.equal(resolveSessionId({ resume: 'resumed-session-id' }), 'resumed-session-id');
+
+  const oldEnv = process.env.ANTIGRAVITY_CONVERSATION_ID;
+  try {
+    process.env.ANTIGRAVITY_CONVERSATION_ID = '12345678-1234-1234-1234-123456789abc';
+    assert.equal(resolveSessionId(), '12345678-1234-1234-1234-123456789abc');
+  } finally {
+    if (oldEnv) process.env.ANTIGRAVITY_CONVERSATION_ID = oldEnv;
+    else delete process.env.ANTIGRAVITY_CONVERSATION_ID;
+  }
+});
+
+test('doesClaudeSessionExist returns boolean without throwing', () => {
+  assert.equal(typeof doesClaudeSessionExist('non-existent-session-id'), 'boolean');
 });

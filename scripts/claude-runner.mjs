@@ -271,6 +271,35 @@ export function parseArgs(args) {
 }
 
 /**
+ * Checks if a Claude Code session file already exists on disk in ~/.claude/projects.
+ */
+export function doesClaudeSessionExist(sessionId) {
+  if (!sessionId) return false;
+  const claudeProjectsDir = join(homedir(), '.claude', 'projects');
+  if (!existsSync(claudeProjectsDir)) return false;
+  try {
+    for (const proj of readdirSync(claudeProjectsDir)) {
+      if (existsSync(join(claudeProjectsDir, proj, `${sessionId}.jsonl`))) return true;
+    }
+  } catch {}
+  return false;
+}
+
+/**
+ * Resolves the session ID for Claude Code, binding to the active Antigravity conversation
+ * so all tasks in the same conversation share continuous memory and context.
+ */
+export function resolveSessionId(options = {}) {
+  if (options.sessionId) return options.sessionId;
+  if (options.resume) return options.resume;
+  const agId = process.env.ANTIGRAVITY_CONVERSATION_ID || process.env.AGY_CONVERSATION_ID;
+  if (agId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agId.trim())) {
+    return agId.trim();
+  }
+  return randomUUID();
+}
+
+/**
  * Builds the array of flags to pass to claude CLI.
  */
 export function buildClaudeArgs(options) {
@@ -287,11 +316,13 @@ export function buildClaudeArgs(options) {
   // Always use highest available effort level
   flags.push('--effort', options.effort || 'max');
 
-  if (options.sessionId) {
-    flags.push('--session-id', options.sessionId);
-  }
-  if (options.resume) {
-    flags.push('--resume', options.resume);
+  const sid = options.sessionId;
+  const isExisting = options.resume || doesClaudeSessionExist(sid);
+
+  if (isExisting) {
+    flags.push('--resume', options.resume || sid);
+  } else if (sid) {
+    flags.push('--session-id', sid);
   }
 
   // Map modes to permission-mode
@@ -394,11 +425,12 @@ export function isIdeActive() {
  */
 export function resolveVisibilityMode(options = {}) {
   if (options.headless) return 'headless';
-  if (process.env.CI) return 'headless';
   if (options.window || options.visible || options.terminal || process.env.CLAUDE_WINDOW === 'true') {
     return 'window';
   }
-  if (options.verbose || process.stdout.isTTY) return 'terminal';
+  if (options.verbose) return 'terminal';
+  if (process.env.CI) return 'headless';
+  if (process.stdout.isTTY) return 'terminal';
   return 'headless';
 }
 
@@ -431,8 +463,13 @@ export function buildInteractiveCliArgs(options = {}) {
   if (options.allowedTools) {
     flags.push('--allowedTools', options.allowedTools);
   }
-  if (options.sessionId) {
-    flags.push('--session-id', options.sessionId);
+
+  const sid = options.sessionId;
+  const isExisting = options.resume || doesClaudeSessionExist(sid);
+  if (isExisting) {
+    flags.push('--resume', options.resume || sid);
+  } else if (sid) {
+    flags.push('--session-id', sid);
   }
 
   const finalPrompt = options.prompt || options.task || '';
@@ -472,7 +509,7 @@ ${cliArgs.map(a => `  ${JSON.stringify(a)}`).join(',\n')}
 & "${binary}" @argsList
 $code = $LASTEXITCODE
 Write-Host ""
-Write-Host "Session finished. Press Enter to close window..." -ForegroundColor Green
+Write-Host "Task completed (exit code: $code). Window active. Press Enter to close..." -ForegroundColor Green
 [void][System.Console]::ReadLine()
 exit $code
 `;
@@ -706,7 +743,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     await ensureNvidiaProxy();
   }
 
-  const sessionId = options.sessionId || randomUUID();
+  const sessionId = resolveSessionId(options);
   const visibility = resolveVisibilityMode(options);
   const isLiveStream = visibility === 'terminal' || options.verbose;
 
