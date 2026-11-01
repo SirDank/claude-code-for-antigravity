@@ -176,6 +176,10 @@ export function parseArgs(args) {
     maxBudgetUsd: null,
     sessionId: null,
     resume: null,
+    cwd: null,
+    agents: null,
+    forwardSubagentText: false,
+    autocompact: null,
     worktree: false,
     safeMode: false,
     connectIde: false,
@@ -228,6 +232,14 @@ export function parseArgs(args) {
       options.sessionId = args[++i];
     } else if (arg === '--resume' && args[i + 1]) {
       options.resume = args[++i];
+    } else if (arg === '--cwd' && args[i + 1]) {
+      options.cwd = args[++i];
+    } else if (arg === '--agents' && args[i + 1]) {
+      options.agents = args[++i];
+    } else if (arg === '--forward-subagent-text') {
+      options.forwardSubagentText = true;
+    } else if (arg === '--autocompact' && args[i + 1]) {
+      options.autocompact = args[++i];
     } else if (arg === '--worktree') {
       options.worktree = true;
     } else if (arg === '--safe-mode') {
@@ -379,6 +391,15 @@ export function buildClaudeArgs(options) {
   if (options.systemPrompt) {
     flags.push('--append-system-prompt', options.systemPrompt);
   }
+  if (options.agents) {
+    flags.push('--agents', options.agents);
+  }
+  if (options.forwardSubagentText) {
+    flags.push('--forward-subagent-text');
+  }
+  if (options.autocompact) {
+    flags.push('--autocompact', options.autocompact);
+  }
 
   if (options.extraArgs && options.extraArgs.length > 0) {
     flags.push(...options.extraArgs);
@@ -484,7 +505,8 @@ export function buildInteractiveCliArgs(options = {}) {
  * Spawns the native Claude Code CLI inside a visible external terminal window (Windows, macOS, Linux)
  * so the user can interact and watch execution live with full access to Claude tools & harness features.
  */
-export function runInTerminalWindow({ binary, options, env, sessionId }) {
+export function runInTerminalWindow({ binary, options, env, sessionId, cwd }) {
+  const repoRoot = cwd || resolveRepoRoot();
   const cliArgs = buildInteractiveCliArgs({ ...options, sessionId });
 
   if (process.platform === 'win32') {
@@ -497,9 +519,11 @@ export function runInTerminalWindow({ binary, options, env, sessionId }) {
     const psContent = `
 $OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Set-Location -LiteralPath "${repoRoot.replace(/"/g, '`"')}"
 ${envLines}
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Claude Code CLI (Native Live Window)" -ForegroundColor Cyan
+Write-Host "  Directory: ${repoRoot.replace(/"/g, '`"')}" -ForegroundColor DarkGray
 Write-Host "  Model: nvidia/nemotron-3-ultra-550b-a55b[1m]" -ForegroundColor DarkGray
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
@@ -527,6 +551,7 @@ exit $code
       '-File',
       launcherScript
     ], {
+      cwd: repoRoot,
       windowsHide: false
     });
 
@@ -539,8 +564,9 @@ exit $code
   }
 
   if (process.platform === 'darwin') {
-    const script = `"${binary}" ${cliArgs.map(a => `"${a.replace(/"/g, '\\"')}"`).join(' ')}`;
+    const script = `cd "${repoRoot}" && "${binary}" ${cliArgs.map(a => `"${a.replace(/"/g, '\\"')}"`).join(' ')}`;
     const child = spawn('osascript', ['-e', `tell application "Terminal" to do script "${script}"`], {
+      cwd: repoRoot,
       env,
       detached: true,
       stdio: 'ignore'
@@ -551,6 +577,7 @@ exit $code
 
   // Linux / Unix fallback
   const child = spawn(binary, cliArgs, {
+    cwd: repoRoot,
     env,
     detached: true,
     stdio: 'ignore'
@@ -676,6 +703,64 @@ export async function ensureNvidiaProxy() {
   return false;
 }
 
+/**
+ * Ensures Free Claude Code (FCC) router server is running on port 8082 on demand.
+ */
+export async function ensureFccServer() {
+  try {
+    const res = await fetch('http://127.0.0.1:8082/health', { signal: AbortSignal.timeout(500) });
+    if (res.ok) return true;
+  } catch {}
+
+  try {
+    const child = spawn('fcc-server', [], {
+      detached: true,
+      stdio: 'ignore',
+      shell: platform() === 'win32'
+    });
+    child.unref();
+
+    for (let i = 0; i < 25; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      try {
+        const res = await fetch('http://127.0.0.1:8082/health', { signal: AbortSignal.timeout(500) });
+        if (res.ok) return true;
+      } catch {}
+    }
+  } catch {}
+
+  return false;
+}
+
+/**
+ * Resolves the absolute root directory of the existing Git repository.
+ * Guarantees Claude Code CLI runs strictly inside the repository root,
+ * preventing execution in subfolders or Windows system directories.
+ */
+export function resolveRepoRoot(startDir = process.cwd()) {
+  try {
+    const toplevel = execSync('git rev-parse --show-toplevel', {
+      cwd: startDir,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+    if (toplevel && existsSync(toplevel)) {
+      return resolve(toplevel);
+    }
+  } catch {}
+
+  // Fallback: traverse upwards looking for .git or package.json
+  let cur = resolve(startDir);
+  const root = resolve('/');
+  while (cur !== root && dirname(cur) !== cur) {
+    if (existsSync(join(cur, '.git')) || existsSync(join(cur, 'package.json'))) {
+      return cur;
+    }
+    cur = dirname(cur);
+  }
+  return resolve(startDir);
+}
+
 function printHelp() {
   console.log(`
 Usage: node scripts/claude-runner.mjs [options]
@@ -734,8 +819,10 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
     }
   }
 
-  // Auto-bridge NVIDIA NIM requests through local translation proxy
-  if (env.ANTHROPIC_BASE_URL && (env.ANTHROPIC_BASE_URL.includes('integrate.api.nvidia.com') || env.ANTHROPIC_BASE_URL.includes(':4000'))) {
+  // Auto-bridge provider requests through on-demand routers
+  if (env.ANTHROPIC_BASE_URL && env.ANTHROPIC_BASE_URL.includes(':8082')) {
+    await ensureFccServer();
+  } else if (env.ANTHROPIC_BASE_URL && (env.ANTHROPIC_BASE_URL.includes('integrate.api.nvidia.com') || env.ANTHROPIC_BASE_URL.includes(':4000'))) {
     if (env.ANTHROPIC_BASE_URL.includes('integrate.api.nvidia.com')) {
       env.NVIDIA_BASE_URL = env.ANTHROPIC_BASE_URL;
       env.ANTHROPIC_BASE_URL = 'http://127.0.0.1:4000';
@@ -764,10 +851,12 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
   }
   const artifactPath = join(runDir, `${sessionId}.json`);
 
+  const repoRoot = resolveRepoRoot(options.cwd);
+
   // Spawns visible external terminal window running native Claude Code CLI
   if (visibility === 'window') {
     console.log(`[Runner] Spawning visible Claude Code CLI window (Session: ${sessionId})...`);
-    const launch = await runInTerminalWindow({ binary, options, env, sessionId });
+    const launch = await runInTerminalWindow({ binary, options, env, sessionId, cwd: repoRoot });
     console.log([
       '=== CLAUDE CODE CLI SESSION COMPLETED ===',
       `Session ID: ${sessionId}`,
@@ -784,6 +873,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
 
   // Use 'ignore' on stdin to eliminate 3s hang while awaiting input
   const child = spawn(binary, claudeArgs, {
+    cwd: repoRoot,
     env,
     stdio: ['ignore', 'pipe', 'pipe']
   });

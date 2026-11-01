@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, ensureNvidiaProxy, resolveSessionId, doesClaudeSessionExist, TASK_PRESETS } from '../scripts/claude-runner.mjs';
+import { parseArgs, buildClaudeArgs, formatDigest, extractJson, isIdeActive, resolveVisibilityMode, ensureNvidiaProxy, ensureFccServer, resolveRepoRoot, resolveSessionId, doesClaudeSessionExist, TASK_PRESETS } from '../scripts/claude-runner.mjs';
 
 test('parseArgs correctly parses CLI options', () => {
   const argv = [
@@ -146,4 +146,42 @@ test('resolveSessionId binds to Antigravity conversation or generates UUID', () 
 
 test('doesClaudeSessionExist returns boolean without throwing', () => {
   assert.equal(typeof doesClaudeSessionExist('non-existent-session-id'), 'boolean');
+});
+
+test('ensureFccServer exports valid function', () => {
+  assert.equal(typeof ensureFccServer, 'function');
+});
+
+test('resolveRepoRoot resolves existing repo root directory', () => {
+  const root = resolveRepoRoot();
+  assert.equal(typeof root, 'string');
+  assert.ok(root.length > 0);
+});
+
+test('parseArgs correctly parses subagent and cwd options', () => {
+  const opts = parseArgs([
+    '--cwd', '/test/repo',
+    '--agents', 'subagents.json',
+    '--forward-subagent-text',
+    '--autocompact', '8000'
+  ]);
+  assert.equal(opts.cwd, '/test/repo');
+  assert.equal(opts.agents, 'subagents.json');
+  assert.equal(opts.forwardSubagentText, true);
+  assert.equal(opts.autocompact, '8000');
+});
+
+test('buildClaudeArgs passes subagent and autocompact flags', () => {
+  const opts = parseArgs([
+    '--agents', 'agents.json',
+    '--forward-subagent-text',
+    '--autocompact', '5000',
+    '--prompt', 'Run subagents'
+  ]);
+  const flags = buildClaudeArgs(opts);
+  assert.ok(flags.includes('--agents'));
+  assert.ok(flags.includes('agents.json'));
+  assert.ok(flags.includes('--forward-subagent-text'));
+  assert.ok(flags.includes('--autocompact'));
+  assert.ok(flags.includes('5000'));
 });

@@ -96,6 +96,12 @@ const targets = [
   resolve('.claude', 'skills')
 ];
 
+function getSkillsForTarget(target) {
+  const isClaudeTarget = target.endsWith(join('.claude', 'skills')) || target.includes('.claude');
+  // Claude Code CLI does not need the /claude delegation skill
+  return skillFolders.filter(f => !isClaudeTarget || f !== 'claude');
+}
+
 if (isCheck) {
   // Check for drift
   let drifted = false;
@@ -104,13 +110,14 @@ if (isCheck) {
       console.warn(`[WARN] Target directory does not exist: ${target}`);
       continue;
     }
+    const targetSkills = getSkillsForTarget(target);
     for (const entry of readdirSync(target, { withFileTypes: true })) {
-      if (entry.isDirectory() && !skillFolders.includes(entry.name)) {
+      if (entry.isDirectory() && !targetSkills.includes(entry.name)) {
         console.error(`[DRIFT] Stale folder in destination: ${join(target, entry.name)}`);
         drifted = true;
       }
     }
-    for (const folder of skillFolders) {
+    for (const folder of targetSkills) {
       const srcFile = join(skillsDir, folder, 'SKILL.md');
       const destFile = join(target, folder, 'SKILL.md');
       if (!existsSync(destFile)) {
@@ -138,19 +145,20 @@ if (isCheck) {
     if (!existsSync(target)) {
       mkdirSync(target, { recursive: true });
     }
+    const targetSkills = getSkillsForTarget(target);
     // Clean stale folders in target
     for (const entry of readdirSync(target, { withFileTypes: true })) {
-      if (entry.isDirectory() && !skillFolders.includes(entry.name)) {
+      if (entry.isDirectory() && !targetSkills.includes(entry.name)) {
         rmSync(join(target, entry.name), { recursive: true, force: true });
       }
     }
-    for (const folder of skillFolders) {
+    for (const folder of targetSkills) {
       const src = join(skillsDir, folder);
       const dest = join(target, folder);
       cpSync(src, dest, { recursive: true });
     }
   }
-  console.log('Synchronized skills to .agents/skills/ and .claude/skills/');
+  console.log('Synchronized skills to .agents/skills/ and .claude/skills/ (excluding /claude from Claude Code)');
 
   if (isGlobal) {
     const globalSkillsDir = join(homedir(), '.gemini', 'config', 'skills');

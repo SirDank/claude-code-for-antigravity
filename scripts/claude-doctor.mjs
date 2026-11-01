@@ -78,10 +78,11 @@ export function runCheck() {
     const d = settingsInfo.data;
     const model = d.model || (d.env && d.env.ANTHROPIC_MODEL) || 'default';
     const baseUrl = (d.env && d.env.ANTHROPIC_BASE_URL) || 'native (Anthropic)';
+    const isFcc = baseUrl.includes(':8082');
     results.push({
       name: 'Claude Settings & Provider',
       status: 'PASS',
-      detail: `Loaded from ${settingsInfo.path} | Model: ${model} | Base URL: ${baseUrl}`
+      detail: `Loaded from ${settingsInfo.path} | Model: ${model} | Base URL: ${baseUrl}${isFcc ? ' (Free Claude Code Router)' : ''}`
     });
   } else {
     results.push({
